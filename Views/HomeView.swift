@@ -14,7 +14,7 @@ struct HomeView: View {
         }
         .padding()
     }
-    
+
     func getGreeting() -> String {
         let hour = Calendar.current.component(.hour, from: Date())
         switch hour {
