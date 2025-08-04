@@ -73,10 +73,9 @@ class EventsService: ObservableObject {
             .decode(type: EventsResponse.self, decoder: JSONDecoder())
             .map { response in
                 print("📊 EventsService: Received \(response.events.count) events from API")
-                self.lastUpdated = ISO8601DateFormatter().date(from: response.metadata.lastUpdated)
                 let convertedEvents = response.events.compactMap { self.convertToCampusEvent($0) }
                 print("✅ EventsService: Successfully converted \(convertedEvents.count) events")
-                return convertedEvents
+                return (response, convertedEvents)
             }
             .receive(on: DispatchQueue.main)
             .sink(
@@ -89,9 +88,10 @@ class EventsService: ObservableObject {
                         }
                     }
                 },
-                receiveValue: { events in
+                receiveValue: { response, events in
                     DispatchQueue.main.async {
                         print("🎉 EventsService: Setting \(events.count) events")
+                        self.lastUpdated = ISO8601DateFormatter().date(from: response.metadata.lastUpdated)
                         self.events = events.sorted { $0.start < $1.start }
                         self.extractCategories()
                         self.applyFilters()
@@ -113,7 +113,7 @@ class EventsService: ObservableObject {
         // Extract location name and coordinates
         let locationParts = jsonEvent.location.components(separatedBy: ", ")
         let locationName = locationParts.first ?? jsonEvent.location
-        let coordinates = locationParts.count > 1 ? locationParts.last : nil
+        let _ = locationParts.count > 1 ? locationParts.last : nil // coordinates for future use
         
         // Clean up description (remove markdown separators)
         let cleanDescription = jsonEvent.description

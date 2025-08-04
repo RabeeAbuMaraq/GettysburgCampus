@@ -43,8 +43,8 @@ struct EventsView: View {
                     VStack(spacing: 0) {
                         // Search Bar
                         SearchBar(text: $searchText)
-                            .onChange(of: searchText) { _ in
-                                eventsService.searchText = searchText
+                            .onChange(of: searchText) { oldValue, newValue in
+                                eventsService.searchText = newValue
                                 eventsService.applyFilters()
                             }
                         
