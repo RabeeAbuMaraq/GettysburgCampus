@@ -137,14 +137,19 @@ struct MapViewSection: View {
     var body: some View {
         ZStack {
             // Map
-            Map(coordinateRegion: $region, annotationItems: locations) { location in
-                MapAnnotation(coordinate: location.coordinate) {
-                    MapPin(
-                        location: location,
-                        isSelected: selectedLocation?.id == location.id
+            Map(position: .constant(.region(region))) {
+                ForEach(locations) { location in
+                    Annotation(
+                        location.name,
+                        coordinate: location.coordinate
                     ) {
-                        withAnimation(DesignSystem.Animations.spring) {
-                            selectedLocation = location
+                        MapPin(
+                            location: location,
+                            isSelected: selectedLocation?.id == location.id
+                        ) {
+                            withAnimation(DesignSystem.Animations.spring) {
+                                selectedLocation = location
+                            }
                         }
                     }
                 }
@@ -228,7 +233,11 @@ struct MapPin: View {
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         ) :
-                        location.type.color
+                        LinearGradient(
+                            colors: [location.type.color, location.type.color],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
                     )
                     .frame(width: 12, height: 8)
                     .offset(y: -2)
