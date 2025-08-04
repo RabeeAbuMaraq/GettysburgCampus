@@ -1,12 +1,12 @@
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var authService = AuthService.shared
     @State private var selectedTab = 0
+    @State private var isAuthenticated = false
     
     var body: some View {
         Group {
-            if authService.isAuthenticated {
+            if isAuthenticated {
                 TabView(selection: $selectedTab) {
                     HomeView()
                         .tabItem {
@@ -58,8 +58,8 @@ struct ContentView: View {
             }
         }
         .onAppear {
-            // Check authentication status
-            authService.checkAuthenticationStatus()
+            // For now, skip authentication for development
+            isAuthenticated = true
         }
     }
 }

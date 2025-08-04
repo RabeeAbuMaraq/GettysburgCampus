@@ -213,7 +213,11 @@ struct MapPin: View {
                                     startPoint: .topLeading,
                                     endPoint: .bottomTrailing
                                 ) :
-                                location.type.color
+                                LinearGradient(
+                                    colors: [location.type.color, location.type.color],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
                             )
                     )
                     .shadow(

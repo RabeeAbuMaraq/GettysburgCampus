@@ -155,7 +155,11 @@ struct MealTypeButton: View {
                             startPoint: .leading,
                             endPoint: .trailing
                         ) :
-                        DesignSystem.Colors.cardBackground
+                        LinearGradient(
+                            colors: [DesignSystem.Colors.cardBackground, DesignSystem.Colors.cardBackground],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
                     )
             )
             .overlay(
@@ -353,7 +357,7 @@ struct TodaysMenuSection: View {
                 animateMenu = true
             }
         }
-        .onChange(of: mealType) { _ in
+        .onChange(of: mealType) { oldValue, newValue in
             animateMenu = false
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                 withAnimation(DesignSystem.Animations.spring) {
