@@ -165,7 +165,11 @@ struct FilterButton: View {
                                 startPoint: .leading,
                                 endPoint: .trailing
                             ) :
-                            Color.white
+                            LinearGradient(
+                                colors: [Color.white, Color.white],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
                         )
                 )
                 .overlay(
