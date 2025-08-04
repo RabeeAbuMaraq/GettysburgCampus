@@ -30,6 +30,7 @@ class EventsService: ObservableObject {
     @Published var events: [CampusEvent] = []
     @Published var isLoading = false
     @Published var errorMessage: String?
+    @Published var lastUpdated: Date?
     
     private let jsonURL = "https://gburgcampus.app/events.json"
     private var cancellables = Set<AnyCancellable>()
@@ -65,6 +66,7 @@ class EventsService: ObservableObject {
                     print("📊 Received \(response.events.count) events from API")
                     let convertedEvents = response.events.compactMap { self.convertToCampusEvent($0) }
                     print("✅ Converted \(convertedEvents.count) events successfully")
+                    self.lastUpdated = ISO8601DateFormatter().date(from: response.metadata.lastUpdated)
                     self.events = convertedEvents.sorted { $0.start < $1.start }
                 }
             )
