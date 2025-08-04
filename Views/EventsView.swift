@@ -25,7 +25,7 @@ struct EventsView: View {
                 ScrollView {
                     VStack(spacing: 0) {
                         // Header Section
-                        HeaderSection()
+                        EventsHeaderSection()
                         
                         // Filter Controls
                         FilterControlsSection(
@@ -91,7 +91,7 @@ struct EventsView: View {
 }
 
 // MARK: - Header Section
-struct HeaderSection: View {
+struct EventsHeaderSection: View {
     var body: some View {
         VStack(spacing: 16) {
             // Title with gradient text effect

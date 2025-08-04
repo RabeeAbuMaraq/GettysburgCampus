@@ -49,7 +49,7 @@ struct CampusMapView: View {
                 
                 VStack(spacing: 0) {
                     // Header Section
-                    HeaderSection()
+                    CampusMapHeaderSection()
                     
                     // Map View
                     MapViewSection(
@@ -76,7 +76,7 @@ struct CampusMapView: View {
 }
 
 // MARK: - Header Section
-struct HeaderSection: View {
+struct CampusMapHeaderSection: View {
     @State private var animateHeader = false
     
     var body: some View {

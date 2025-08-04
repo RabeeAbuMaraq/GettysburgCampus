@@ -16,10 +16,10 @@ struct HomeView: View {
                 ScrollView {
                     VStack(spacing: DesignSystem.Spacing.xl) {
                         // Header Section
-                        HeaderSection()
+                        HomeHeaderSection()
                         
                         // Quick Actions
-                        QuickActionsSection()
+                        HomeQuickActionsSection()
                         
                         // Today's Events Preview
                         if !eventsService.events.isEmpty {
@@ -44,7 +44,7 @@ struct HomeView: View {
 }
 
 // MARK: - Header Section
-struct HeaderSection: View {
+struct HomeHeaderSection: View {
     @State private var animateHeader = false
     
     var body: some View {
@@ -101,7 +101,7 @@ struct HeaderSection: View {
 }
 
 // MARK: - Quick Actions Section
-struct QuickActionsSection: View {
+struct HomeQuickActionsSection: View {
     @State private var animateActions = false
     
     let quickActions = [
@@ -146,7 +146,7 @@ struct QuickActionsSection: View {
                 GridItem(.flexible())
             ], spacing: DesignSystem.Spacing.md) {
                 ForEach(Array(quickActions.enumerated()), id: \.offset) { index, action in
-                    QuickActionCard(action: action)
+                    HomeQuickActionCard(action: action)
                         .opacity(animateActions ? 1 : 0)
                         .offset(y: animateActions ? 0 : 30)
                         .animation(DesignSystem.Animations.spring.delay(Double(index) * 0.1), value: animateActions)
@@ -162,7 +162,7 @@ struct QuickActionsSection: View {
 }
 
 // MARK: - Quick Action Card
-struct QuickActionCard: View {
+struct HomeQuickActionCard: View {
     let action: QuickAction
     @State private var isPressed = false
     

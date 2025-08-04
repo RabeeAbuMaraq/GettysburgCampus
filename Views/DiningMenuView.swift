@@ -14,7 +14,7 @@ struct DiningMenuView: View {
                 ScrollView {
                     VStack(spacing: DesignSystem.Spacing.xl) {
                         // Header Section
-                        HeaderSection()
+                        DiningHeaderSection()
                         
                         // Meal Type Selector
                         MealTypeSelector(selectedMeal: $selectedMeal)
@@ -40,7 +40,7 @@ struct DiningMenuView: View {
 }
 
 // MARK: - Header Section
-struct HeaderSection: View {
+struct DiningHeaderSection: View {
     @State private var animateHeader = false
     
     var body: some View {
