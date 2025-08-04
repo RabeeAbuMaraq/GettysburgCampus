@@ -1,66 +1,65 @@
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var userManager = UserManager.shared
+    @StateObject private var authService = AuthService.shared
+    @State private var selectedTab = 0
     
     var body: some View {
         Group {
-            // Temporarily skip authentication for development
-            MainAppView()
-            
-            // Uncomment this when you want authentication back:
-            // if userManager.isUserLoggedIn() {
-            //     MainAppView()
-            // } else {
-            //     LoginView()
-            // }
-        }
-    }
-}
-
-struct MainAppView: View {
-    @StateObject private var userManager = UserManager.shared
-    
-    var body: some View {
-        TabView {
-            HomeView()
-                .tabItem {
-                    Image(systemName: "house.fill")
-                    Text("Home")
+            if authService.isAuthenticated {
+                TabView(selection: $selectedTab) {
+                    HomeView()
+                        .tabItem {
+                            Image(systemName: "house.fill")
+                            Text("Home")
+                        }
+                        .tag(0)
+                    
+                    EventsView()
+                        .tabItem {
+                            Image(systemName: "calendar")
+                            Text("Events")
+                        }
+                        .tag(1)
+                    
+                    DiningMenuView()
+                        .tabItem {
+                            Image(systemName: "fork.knife")
+                            Text("Dining")
+                        }
+                        .tag(2)
+                    
+                    CampusMapView()
+                        .tabItem {
+                            Image(systemName: "map.fill")
+                            Text("Map")
+                        }
+                        .tag(3)
+                    
+                    MoreView()
+                        .tabItem {
+                            Image(systemName: "ellipsis")
+                            Text("More")
+                        }
+                        .tag(4)
                 }
-            
-            DiningMenuView()
-                .tabItem {
-                    Image(systemName: "fork.knife")
-                    Text("Dining")
+                .accentColor(DesignSystem.Colors.orange)
+                .onAppear {
+                    // Set tab bar appearance
+                    let appearance = UITabBarAppearance()
+                    appearance.configureWithOpaqueBackground()
+                    appearance.backgroundColor = UIColor.systemBackground
+                    
+                    UITabBar.appearance().standardAppearance = appearance
+                    UITabBar.appearance().scrollEdgeAppearance = appearance
                 }
-            
-            EventsView()
-                .tabItem {
-                    Image(systemName: "calendar")
-                    Text("Events")
-                }
-            
-            CampusMapView()
-                .tabItem {
-                    Image(systemName: "map.fill")
-                    Text("Map")
-                }
-            
-            MoreView()
-                .tabItem {
-                    Image(systemName: "ellipsis.circle.fill")
-                    Text("More")
-                }
-        }
-        .accentColor(Color.primaryAccent)
-        .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button("Sign Out") {
-                    userManager.signOut()
-                }
-                .foregroundColor(Color.primaryAccent)
+            } else {
+                LoginView()
             }
+        }
+        .onAppear {
+            // Check authentication status
+            authService.checkAuthenticationStatus()
         }
     }
 }
