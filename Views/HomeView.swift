@@ -44,7 +44,7 @@ struct HomeView: View {
                             QuickActionCard(
                                 icon: "calendar",
                                 title: "Events",
-                                subtitle: "\(eventsService.todayEventsCount) today",
+                                subtitle: "\(eventsService.events.count) events",
                                 color: Color.accentGreen
                             )
                             
