@@ -7,7 +7,7 @@ class BackgroundTaskManager: ObservableObject {
     static let shared = BackgroundTaskManager()
     
     private let backgroundTaskIdentifier = "com.gettysburgcampus.eventrefresh"
-    private let icsParser = ICSParser()
+    private let eventsService = EventsService.shared
     
     private init() {}
     
@@ -43,7 +43,7 @@ class BackgroundTaskManager: ObservableObject {
         
         // Perform the background work
         Task {
-            await icsParser.fetchEvents()
+            eventsService.refreshEvents()
             task.setTaskCompleted(success: true)
         }
     }
