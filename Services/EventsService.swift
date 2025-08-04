@@ -58,6 +58,7 @@ class EventsService: ObservableObject {
     }
     
     func loadEvents() {
+        print("🔄 EventsService: Starting to load events from \(jsonURL)")
         isLoading = true
         errorMessage = nil
         
@@ -71,21 +72,31 @@ class EventsService: ObservableObject {
             .map(\.data)
             .decode(type: EventsResponse.self, decoder: JSONDecoder())
             .map { response in
+                print("📊 EventsService: Received \(response.events.count) events from API")
                 self.lastUpdated = ISO8601DateFormatter().date(from: response.metadata.lastUpdated)
-                return response.events.compactMap { self.convertToCampusEvent($0) }
+                let convertedEvents = response.events.compactMap { self.convertToCampusEvent($0) }
+                print("✅ EventsService: Successfully converted \(convertedEvents.count) events")
+                return convertedEvents
             }
             .receive(on: DispatchQueue.main)
             .sink(
                 receiveCompletion: { completion in
-                    self.isLoading = false
-                    if case .failure(let error) = completion {
-                        self.errorMessage = "Failed to load events: \(error.localizedDescription)"
+                    DispatchQueue.main.async {
+                        self.isLoading = false
+                        if case .failure(let error) = completion {
+                            print("❌ EventsService: Failed to load events - \(error.localizedDescription)")
+                            self.errorMessage = "Failed to load events: \(error.localizedDescription)"
+                        }
                     }
                 },
                 receiveValue: { events in
-                    self.events = events.sorted { $0.start < $1.start }
-                    self.extractCategories()
-                    self.applyFilters()
+                    DispatchQueue.main.async {
+                        print("🎉 EventsService: Setting \(events.count) events")
+                        self.events = events.sorted { $0.start < $1.start }
+                        self.extractCategories()
+                        self.applyFilters()
+                        print("📱 EventsService: Filtered events count: \(self.filteredEvents.count)")
+                    }
                 }
             )
             .store(in: &cancellables)
@@ -168,35 +179,38 @@ class EventsService: ObservableObject {
     }
     
     func applyFilters() {
-        var filtered = events
-        
-        // Apply time filter
-        switch selectedTimeFilter {
-        case .today:
-            filtered = filtered.filter { $0.isToday }
-        case .thisWeek:
-            filtered = filtered.filter { $0.isThisWeek }
-        case .upcoming:
-            filtered = filtered.filter { $0.start > Date() }
-        case .all:
-            break
-        }
-        
-        // Apply category filter
-        if let category = selectedCategoryFilter {
-            filtered = filtered.filter { $0.category == category }
-        }
-        
-        // Apply search filter
-        if !searchText.isEmpty {
-            filtered = filtered.filter { event in
-                event.title.localizedCaseInsensitiveContains(searchText) ||
-                event.location.localizedCaseInsensitiveContains(searchText) ||
-                (event.description.localizedCaseInsensitiveContains(searchText))
+        DispatchQueue.main.async {
+            var filtered = self.events
+            
+            // Apply time filter
+            switch self.selectedTimeFilter {
+            case .today:
+                filtered = filtered.filter { $0.isToday }
+            case .thisWeek:
+                filtered = filtered.filter { $0.isThisWeek }
+            case .upcoming:
+                filtered = filtered.filter { $0.start > Date() }
+            case .all:
+                break
             }
+            
+            // Apply category filter
+            if let category = self.selectedCategoryFilter {
+                filtered = filtered.filter { $0.category == category }
+            }
+            
+            // Apply search filter
+            if !self.searchText.isEmpty {
+                filtered = filtered.filter { event in
+                    event.title.localizedCaseInsensitiveContains(self.searchText) ||
+                    event.location.localizedCaseInsensitiveContains(self.searchText) ||
+                    (event.description.localizedCaseInsensitiveContains(self.searchText))
+                }
+            }
+            
+            print("🔍 EventsService: Applied filters - \(filtered.count) events after filtering")
+            self.filteredEvents = filtered
         }
-        
-        filteredEvents = filtered
     }
     
     func refreshEvents() {

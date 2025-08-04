@@ -12,6 +12,26 @@ struct EventsView: View {
             ZStack {
                 Color.background.ignoresSafeArea()
                 
+                // Debug info
+                VStack {
+                    Text("Debug: Total events: \(eventsService.events.count)")
+                        .font(.caption)
+                        .foregroundColor(.red)
+                    Text("Debug: Filtered events: \(eventsService.filteredEvents.count)")
+                        .font(.caption)
+                        .foregroundColor(.red)
+                    Text("Debug: Loading: \(eventsService.isLoading ? "Yes" : "No")")
+                        .font(.caption)
+                        .foregroundColor(.red)
+                    if let error = eventsService.errorMessage {
+                        Text("Debug: Error: \(error)")
+                            .font(.caption)
+                            .foregroundColor(.red)
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .padding()
+                
                 if eventsService.isLoading && eventsService.filteredEvents.isEmpty {
                     LoadingView()
                 } else if eventsService.filteredEvents.isEmpty {
