@@ -11,169 +11,224 @@ struct SignUpView: View {
     let classYears = ["2024", "2025", "2026", "2027", "2028"]
     
     var body: some View {
-        NavigationView {
-            ZStack {
-                // Background
-                Color(red: 0.98, green: 0.98, blue: 1.0)
-                    .ignoresSafeArea()
-                
-                ScrollView {
-                    VStack(spacing: 32) {
-                        // Header
-                        VStack(spacing: 16) {
-                            // Clock Tower Icon
-                            ZStack {
-                                Circle()
-                                    .fill(Color(red: 0.1, green: 0.2, blue: 0.4).opacity(0.1))
-                                    .frame(width: 80, height: 80)
-                                
-                                Image(systemName: "building.columns.fill")
-                                    .font(.system(size: 32, weight: .light))
-                                    .foregroundColor(Color(red: 0.1, green: 0.2, blue: 0.4))
-                            }
+        ZStack {
+            // Premium gradient background
+            LinearGradient(
+                colors: [
+                    Color(red: 0.05, green: 0.1, blue: 0.25),
+                    Color(red: 0.1, green: 0.2, blue: 0.4),
+                    Color(red: 0.15, green: 0.25, blue: 0.5)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+            
+            // Animated background elements
+            GeometryReader { geometry in
+                ZStack {
+                    Circle()
+                        .fill(Color(red: 0.2, green: 0.6, blue: 1.0).opacity(0.1))
+                        .frame(width: 200, height: 200)
+                        .blur(radius: 50)
+                        .offset(x: geometry.size.width * 0.8, y: geometry.size.height * 0.2)
+                    
+                    Circle()
+                        .fill(Color(red: 0.1, green: 0.4, blue: 0.8).opacity(0.1))
+                        .frame(width: 150, height: 150)
+                        .blur(radius: 40)
+                        .offset(x: geometry.size.width * 0.1, y: geometry.size.height * 0.7)
+                }
+            }
+            
+            ScrollView {
+                VStack(spacing: 32) {
+                    // Header
+                    VStack(spacing: 24) {
+                        // Premium logo
+                        ZStack {
+                            Circle()
+                                .fill(Color.cardBackground)
+                                .frame(width: 100, height: 100)
+                                .overlay(
+                                    Circle()
+                                        .stroke(
+                                            LinearGradient(
+                                                colors: [
+                                                    Color.white.opacity(0.3),
+                                                    Color.white.opacity(0.1)
+                                                ],
+                                                startPoint: .topLeading,
+                                                endPoint: .bottomTrailing
+                                            ),
+                                            lineWidth: 1
+                                        )
+                                )
+                                .shadow(color: Color.black.opacity(0.2), radius: 15, x: 0, y: 8)
                             
-                            VStack(spacing: 8) {
-                                Text("Create Account")
-                                    .font(.system(size: 28, weight: .bold, design: .rounded))
-                                    .foregroundColor(Color(red: 0.1, green: 0.2, blue: 0.4))
-                                
-                                Text("Join the Gettysburg community")
-                                    .font(.system(size: 16, weight: .medium))
-                                    .foregroundColor(.gray)
-                            }
-                        }
-                        .padding(.top, 20)
-                        
-                        // Form Fields
-                        VStack(spacing: 24) {
-                            // Name Fields
-                            HStack(spacing: 16) {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text("First Name")
-                                        .font(.system(size: 16, weight: .semibold))
-                                        .foregroundColor(Color(red: 0.1, green: 0.2, blue: 0.4))
-                                    
-                                    TextField("Enter first name", text: $firstName)
-                                        .textFieldStyle(CustomTextFieldStyle())
-                                }
-                                
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text("Last Initial")
-                                        .font(.system(size: 16, weight: .semibold))
-                                        .foregroundColor(Color(red: 0.1, green: 0.2, blue: 0.4))
-                                    
-                                    TextField("L", text: $lastInitial)
-                                        .textFieldStyle(CustomTextFieldStyle())
-                                        .textInputAutocapitalization(.characters)
-                                }
-                            }
-                            
-                            // Class Year
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("Class Year")
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .foregroundColor(Color(red: 0.1, green: 0.2, blue: 0.4))
-                                
-                                Menu {
-                                    ForEach(classYears, id: \.self) { year in
-                                        Button(year) {
-                                            classYear = year
-                                        }
-                                    }
-                                } label: {
-                                    HStack {
-                                        Text(classYear.isEmpty ? "Select Year" : classYear)
-                                            .foregroundColor(classYear.isEmpty ? .gray : Color(red: 0.1, green: 0.2, blue: 0.4))
-                                        Spacer()
-                                        Image(systemName: "chevron.down")
-                                            .foregroundColor(.gray)
-                                    }
-                                    .padding()
-                                    .frame(maxWidth: .infinity)
-                                    .background(Color.white)
-                                    .cornerRadius(12)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                            Image(systemName: "building.columns.fill")
+                                .font(.system(size: 40, weight: .light))
+                                .foregroundStyle(
+                                    LinearGradient(
+                                        colors: [
+                                            Color.white,
+                                            Color(red: 0.2, green: 0.6, blue: 1.0)
+                                        ],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
                                     )
-                                }
+                                )
+                        }
+                        .padding(.top, 40)
+                        
+                        VStack(spacing: 12) {
+                            Text("Create Account")
+                                .font(.system(size: 28, weight: .bold, design: .rounded))
+                                .foregroundStyle(
+                                    LinearGradient(
+                                        colors: [
+                                            Color.white,
+                                            Color(red: 0.2, green: 0.6, blue: 1.0)
+                                        ],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                            
+                            Text("Join the Gettysburg community")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(.white.opacity(0.8))
+                                .multilineTextAlignment(.center)
+                        }
+                    }
+                    
+                    // Form Fields
+                    VStack(spacing: 24) {
+                        // Name Fields
+                        HStack(spacing: 16) {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("First Name")
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundColor(.white)
+                                
+                                TextField("Enter first name", text: $firstName)
+                                    .modernTextField()
                             }
                             
-                            // Campus Email
                             VStack(alignment: .leading, spacing: 8) {
-                                Text("Campus Email")
+                                Text("Last Initial")
                                     .font(.system(size: 16, weight: .semibold))
-                                    .foregroundColor(Color(red: 0.1, green: 0.2, blue: 0.4))
+                                    .foregroundColor(.white)
                                 
-                                TextField("username@gettysburg.edu", text: $campusEmail)
-                                    .textFieldStyle(CustomTextFieldStyle())
-                                    .keyboardType(.emailAddress)
-                                    .autocapitalization(.none)
+                                TextField("L", text: $lastInitial)
+                                    .textInputAutocapitalization(.characters)
+                                    .modernTextField()
                             }
                         }
-                        .padding(.horizontal, 24)
                         
-                        // Continue Button
-                        Button(action: {
-                            if isValidForm() {
+                        // Class Year
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Class Year")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(.white)
+                            
+                            Menu {
+                                ForEach(classYears, id: \.self) { year in
+                                    Button(year) {
+                                        classYear = year
+                                    }
+                                }
+                            } label: {
+                                HStack {
+                                    Text(classYear.isEmpty ? "Select Year" : classYear)
+                                        .foregroundColor(classYear.isEmpty ? .white.opacity(0.6) : .white)
+                                    Spacer()
+                                    Image(systemName: "chevron.down")
+                                        .foregroundColor(.white.opacity(0.6))
+                                }
+                                .padding()
+                                .background(
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .fill(Color.cardBackground)
+                                        .opacity(0.8)
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .stroke(
+                                            LinearGradient(
+                                                colors: [
+                                                    Color.white.opacity(0.2),
+                                                    Color.white.opacity(0.1)
+                                                ],
+                                                startPoint: .topLeading,
+                                                endPoint: .bottomTrailing
+                                            ),
+                                            lineWidth: 1
+                                        )
+                                )
+                                .shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: 2)
+                            }
+                        }
+                        
+                        // Campus Email
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Campus Email")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(.white)
+                            
+                            TextField("username@gettysburg.edu", text: $campusEmail)
+                                .keyboardType(.emailAddress)
+                                .autocapitalization(.none)
+                                .modernTextField()
+                        }
+                    }
+                    .padding(.horizontal, 24)
+                    
+                    Spacer(minLength: 40)
+                    
+                    // Continue Button
+                    Button(action: {
+                        if isValidForm() {
+                            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
                                 showingEmailVerification = true
                             }
-                        }) {
-                            HStack {
-                                Image(systemName: "arrow.right")
-                                    .font(.system(size: 18, weight: .semibold))
-                                Text("Continue")
-                                    .font(.system(size: 18, weight: .semibold))
-                            }
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 56)
-                            .background(
-                                LinearGradient(
-                                    gradient: Gradient(colors: isValidForm() ? [
-                                        Color(red: 0.2, green: 0.6, blue: 1.0),
-                                        Color(red: 0.1, green: 0.4, blue: 0.8)
-                                    ] : [
-                                        Color.gray.opacity(0.5),
-                                        Color.gray.opacity(0.3)
-                                    ]),
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                            )
-                            .cornerRadius(16)
-                            .shadow(color: isValidForm() ? Color.black.opacity(0.2) : Color.clear, radius: 8, x: 0, y: 4)
                         }
-                        .disabled(!isValidForm())
-                        .padding(.horizontal, 24)
-                        
-                        Spacer(minLength: 40)
+                    }) {
+                        HStack(spacing: 12) {
+                            Image(systemName: "arrow.right")
+                                .font(.system(size: 18, weight: .semibold))
+                            Text("Continue")
+                                .font(.system(size: 18, weight: .semibold, design: .rounded))
+                        }
                     }
+                    .modernButton(.primary, isEnabled: isValidForm())
+                    .disabled(!isValidForm())
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 20)
                 }
-            }
-            .navigationBarTitleDisplayMode(.inline)
-            .navigationBarBackButtonHidden(true)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                    .foregroundColor(Color(red: 0.1, green: 0.2, blue: 0.4))
-                }
-            }
-            .sheet(isPresented: $showingEmailVerification) {
-                EmailVerificationView(
-                    userData: UserData(
-                        firstName: firstName,
-                        lastInitial: lastInitial,
-                        classYear: classYear,
-                        campusEmail: campusEmail,
-                        phoneNumber: ""
-                    )
-                )
             }
         }
-        .navigationViewStyle(StackNavigationViewStyle())
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(true)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button("Cancel") {
+                    dismiss()
+                }
+                .foregroundColor(.white.opacity(0.8))
+            }
+        }
+        .sheet(isPresented: $showingEmailVerification) {
+            EmailVerificationView(
+                userData: UserData(
+                    firstName: firstName,
+                    lastInitial: lastInitial,
+                    classYear: classYear,
+                    campusEmail: campusEmail,
+                    phoneNumber: ""
+                )
+            )
+        }
     }
     
     private func isValidForm() -> Bool {
@@ -182,19 +237,6 @@ struct SignUpView: View {
         !classYear.isEmpty &&
         !campusEmail.isEmpty &&
         campusEmail.contains("@gettysburg.edu")
-    }
-}
-
-struct CustomTextFieldStyle: TextFieldStyle {
-    func _body(configuration: TextField<Self._Label>) -> some View {
-        configuration
-            .padding()
-            .background(Color.white)
-            .cornerRadius(12)
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color.gray.opacity(0.3), lineWidth: 1)
-            )
     }
 }
 

@@ -1,17 +1,20 @@
 import SwiftUI
 
-struct SignInView: View {
+struct PasswordCreationView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var userManager = UserManager.shared
-    @State private var email = ""
+    let userData: UserData
+    
     @State private var password = ""
+    @State private var confirmPassword = ""
     @State private var showingPassword = false
+    @State private var showingConfirmPassword = false
     @State private var isLoading = false
     @State private var errorMessage = ""
     @FocusState private var focusedField: Field?
     
     enum Field {
-        case email, password
+        case password, confirmPassword
     }
     
     var body: some View {
@@ -70,7 +73,7 @@ struct SignInView: View {
                                 )
                                 .shadow(color: Color.black.opacity(0.2), radius: 15, x: 0, y: 8)
                             
-                            Image(systemName: "person.circle.fill")
+                            Image(systemName: "lock.shield")
                                 .font(.system(size: 40, weight: .light))
                                 .foregroundStyle(
                                     LinearGradient(
@@ -86,7 +89,7 @@ struct SignInView: View {
                         .padding(.top, 40)
                         
                         VStack(spacing: 12) {
-                            Text("Welcome Back")
+                            Text("Create Your Password")
                                 .font(.system(size: 28, weight: .bold, design: .rounded))
                                 .foregroundStyle(
                                     LinearGradient(
@@ -99,7 +102,7 @@ struct SignInView: View {
                                     )
                                 )
                             
-                            Text("Sign in to your Gettysburg account")
+                            Text("Secure your account with a strong password")
                                 .font(.system(size: 16, weight: .medium))
                                 .foregroundColor(.white.opacity(0.8))
                                 .multilineTextAlignment(.center)
@@ -124,21 +127,8 @@ struct SignInView: View {
                             )
                     }
                     
-                    // Sign In Form
+                    // Password Form
                     VStack(spacing: 24) {
-                        // Email Field
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Campus Email")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(.white)
-                            
-                            TextField("username@gettysburg.edu", text: $email)
-                                .keyboardType(.emailAddress)
-                                .autocapitalization(.none)
-                                .focused($focusedField, equals: .email)
-                                .modernTextField()
-                        }
-                        
                         // Password Field
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Password")
@@ -164,32 +154,63 @@ struct SignInView: View {
                             .modernTextField()
                         }
                         
-                        // Forgot Password
-                        HStack {
-                            Spacer()
-                            Button("Forgot Password?") {
-                                // TODO: Implement forgot password
+                        // Confirm Password Field
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Confirm Password")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(.white)
+                            
+                            HStack {
+                                if showingConfirmPassword {
+                                    TextField("Confirm your password", text: $confirmPassword)
+                                        .focused($focusedField, equals: .confirmPassword)
+                                } else {
+                                    SecureField("Confirm your password", text: $confirmPassword)
+                                        .focused($focusedField, equals: .confirmPassword)
+                                }
+                                
+                                Button(action: {
+                                    showingConfirmPassword.toggle()
+                                }) {
+                                    Image(systemName: showingConfirmPassword ? "eye.slash" : "eye")
+                                        .foregroundColor(.white.opacity(0.6))
+                                }
                             }
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(Color.primaryAccent)
+                            .modernTextField()
                         }
+                        
+                        // Password Requirements
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Password Requirements:")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(.white.opacity(0.8))
+                            
+                            VStack(alignment: .leading, spacing: 4) {
+                                RequirementRow(text: "At least 8 characters", isMet: password.count >= 8)
+                                RequirementRow(text: "Contains uppercase letter", isMet: password.contains { $0.isUppercase })
+                                RequirementRow(text: "Contains lowercase letter", isMet: password.contains { $0.isLowercase })
+                                RequirementRow(text: "Contains number", isMet: password.contains { $0.isNumber })
+                                RequirementRow(text: "Passwords match", isMet: password == confirmPassword && !confirmPassword.isEmpty)
+                            }
+                        }
+                        .padding(.horizontal, 4)
                     }
                     .padding(.horizontal, 24)
                     
                     Spacer(minLength: 40)
                     
-                    // Sign In Button
-                    Button(action: signIn) {
+                    // Create Account Button
+                    Button(action: createAccount) {
                         HStack {
                             if isLoading {
                                 ProgressView()
                                     .progressViewStyle(CircularProgressViewStyle(tint: .white))
                                     .scaleEffect(0.8)
                             } else {
-                                Image(systemName: "arrow.right")
+                                Image(systemName: "checkmark.shield")
                                     .font(.system(size: 18, weight: .semibold))
                             }
-                            Text(isLoading ? "Signing In..." : "Sign In")
+                            Text(isLoading ? "Creating Account..." : "Create Account")
                                 .font(.system(size: 18, weight: .semibold, design: .rounded))
                         }
                     }
@@ -204,7 +225,7 @@ struct SignInView: View {
         .navigationBarBackButtonHidden(true)
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
-                Button("Cancel") {
+                Button("Back") {
                     dismiss()
                 }
                 .foregroundColor(.white.opacity(0.8))
@@ -213,34 +234,53 @@ struct SignInView: View {
     }
     
     private func isValidForm() -> Bool {
-        !email.isEmpty && email.contains("@gettysburg.edu") && !password.isEmpty
+        password.count >= 8 &&
+        password.contains { $0.isUppercase } &&
+        password.contains { $0.isLowercase } &&
+        password.contains { $0.isNumber } &&
+        password == confirmPassword &&
+        !password.isEmpty
     }
     
-    private func signIn() {
+    private func createAccount() {
         guard isValidForm() else { return }
         
         isLoading = true
         errorMessage = ""
         
-        // Simulate authentication (in real app, this would call your backend)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            isLoading = false
-            
-            // For demo purposes, create a mock user
-            let mockUser = UserManager.User(
-                email: email,
-                firstName: "Demo",
-                lastInitial: "U",
-                classYear: "2025",
-                token: UUID().uuidString,
-                createdAt: Date()
-            )
-            
-            // Save user to persistent storage
-            userManager.saveUser(mockUser)
-            
-            // Dismiss and go to main app
+        // Create user account
+        let user = UserManager.User(
+            email: userData.campusEmail,
+            firstName: userData.firstName,
+            lastInitial: userData.lastInitial,
+            classYear: userData.classYear,
+            token: UUID().uuidString, // In real app, this would come from backend
+            createdAt: Date()
+        )
+        
+        // Save user to persistent storage
+        userManager.saveUser(user)
+        
+        // Dismiss and go to main app
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             dismiss()
+        }
+    }
+}
+
+struct RequirementRow: View {
+    let text: String
+    let isMet: Bool
+    
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: isMet ? "checkmark.circle.fill" : "circle")
+                .foregroundColor(isMet ? Color.green : Color.white.opacity(0.4))
+                .font(.system(size: 12))
+            
+            Text(text)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(isMet ? Color.white.opacity(0.8) : Color.white.opacity(0.5))
         }
     }
 } 

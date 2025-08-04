@@ -17,38 +17,96 @@ struct EmailVerificationView: View {
     
     var body: some View {
         NavigationView {
-            ZStack {
-                // Background
-                Color(red: 0.98, green: 0.98, blue: 1.0)
-                    .ignoresSafeArea()
+                    ZStack {
+            // Premium gradient background
+            LinearGradient(
+                colors: [
+                    Color(red: 0.05, green: 0.1, blue: 0.25),
+                    Color(red: 0.1, green: 0.2, blue: 0.4),
+                    Color(red: 0.15, green: 0.25, blue: 0.5)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+            
+            // Animated background elements
+            GeometryReader { geometry in
+                ZStack {
+                    Circle()
+                        .fill(Color(red: 0.2, green: 0.6, blue: 1.0).opacity(0.1))
+                        .frame(width: 200, height: 200)
+                        .blur(radius: 50)
+                        .offset(x: geometry.size.width * 0.8, y: geometry.size.height * 0.2)
+                    
+                    Circle()
+                        .fill(Color(red: 0.1, green: 0.4, blue: 0.8).opacity(0.1))
+                        .frame(width: 150, height: 150)
+                        .blur(radius: 40)
+                        .offset(x: geometry.size.width * 0.1, y: geometry.size.height * 0.7)
+                }
+            }
                 
                 VStack(spacing: 32) {
                     // Header
                     VStack(spacing: 20) {
-                        // Clock Tower Icon
+                        // Premium logo
                         ZStack {
                             Circle()
-                                .fill(Color(red: 0.1, green: 0.2, blue: 0.4).opacity(0.1))
+                                .fill(Color.cardBackground)
                                 .frame(width: 100, height: 100)
+                                .overlay(
+                                    Circle()
+                                        .stroke(
+                                            LinearGradient(
+                                                colors: [
+                                                    Color.white.opacity(0.3),
+                                                    Color.white.opacity(0.1)
+                                                ],
+                                                startPoint: .topLeading,
+                                                endPoint: .bottomTrailing
+                                            ),
+                                            lineWidth: 1
+                                        )
+                                )
+                                .shadow(color: Color.black.opacity(0.2), radius: 15, x: 0, y: 8)
                             
                             Image(systemName: "envelope.circle.fill")
                                 .font(.system(size: 40, weight: .light))
-                                .foregroundColor(Color(red: 0.1, green: 0.2, blue: 0.4))
+                                .foregroundStyle(
+                                    LinearGradient(
+                                        colors: [
+                                            Color.white,
+                                            Color(red: 0.2, green: 0.6, blue: 1.0)
+                                        ],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
                         }
                         .padding(.top, 40)
                         
                         VStack(spacing: 12) {
                             Text("Verify Your Email")
                                 .font(.system(size: 28, weight: .bold, design: .rounded))
-                                .foregroundColor(Color(red: 0.1, green: 0.2, blue: 0.4))
+                                .foregroundStyle(
+                                    LinearGradient(
+                                        colors: [
+                                            Color.white,
+                                            Color(red: 0.2, green: 0.6, blue: 1.0)
+                                        ],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
                             
                             Text("We sent a verification code to")
                                 .font(.system(size: 16, weight: .medium))
-                                .foregroundColor(.gray)
+                                .foregroundColor(.white.opacity(0.8))
                             
                             Text(userData.campusEmail)
                                 .font(.system(size: 18, weight: .semibold))
-                                .foregroundColor(Color(red: 0.1, green: 0.2, blue: 0.4))
+                                .foregroundColor(.white)
                                 .multilineTextAlignment(.center)
                         }
                     }
@@ -68,7 +126,7 @@ struct EmailVerificationView: View {
                     VStack(spacing: 20) {
                         Text("Enter the 6-digit code")
                             .font(.system(size: 18, weight: .semibold))
-                            .foregroundColor(Color(red: 0.1, green: 0.2, blue: 0.4))
+                            .foregroundColor(.white)
                         
                         // Code Input Field
                         HStack(spacing: 12) {
@@ -85,7 +143,7 @@ struct EmailVerificationView: View {
                             .keyboardType(.numberPad)
                             .focused($isCodeFieldFocused)
                             .opacity(0)
-                            .onChange(of: verificationCode) { newValue in
+                            .onChange(of: verificationCode) { _, newValue in
                                 // Limit to 6 digits
                                 if newValue.count > 6 {
                                     verificationCode = String(newValue.prefix(6))
@@ -130,27 +188,10 @@ struct EmailVerificationView: View {
                                     .font(.system(size: 18, weight: .semibold))
                             }
                             Text(isLoading ? "Verifying..." : "Complete Registration")
-                                .font(.system(size: 18, weight: .semibold))
+                                .font(.system(size: 18, weight: .semibold, design: .rounded))
                         }
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 56)
-                        .background(
-                            LinearGradient(
-                                gradient: Gradient(colors: verificationCode.count == 6 && !isLoading ? [
-                                    Color(red: 0.2, green: 0.6, blue: 1.0),
-                                    Color(red: 0.1, green: 0.4, blue: 0.8)
-                                ] : [
-                                    Color.gray.opacity(0.5),
-                                    Color.gray.opacity(0.3)
-                                ]),
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .cornerRadius(16)
-                        .shadow(color: verificationCode.count == 6 && !isLoading ? Color.black.opacity(0.2) : Color.clear, radius: 8, x: 0, y: 4)
                     }
+                    .modernButton(.primary, isEnabled: verificationCode.count == 6 && !isLoading)
                     .disabled(verificationCode.count != 6 || isLoading)
                     .padding(.horizontal, 24)
                     .padding(.bottom, 20)
@@ -163,11 +204,11 @@ struct EmailVerificationView: View {
                     Button("Back") {
                         dismiss()
                     }
-                    .foregroundColor(Color(red: 0.1, green: 0.2, blue: 0.4))
+                    .foregroundColor(.white.opacity(0.8))
                 }
             }
             .fullScreenCover(isPresented: $showingMainApp) {
-                ContentView()
+                PasswordCreationView(userData: userData)
             }
             .alert("Error", isPresented: $showingError) {
                 Button("OK") { }
@@ -280,36 +321,6 @@ struct EmailVerificationView: View {
             } else {
                 canResend = true
                 timer.invalidate()
-            }
-        }
-    }
-}
-
-struct VerificationCodeDigit: View {
-    let digit: String
-    let isActive: Bool
-    
-    var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 12)
-                .fill(isActive ? Color(red: 0.1, green: 0.2, blue: 0.4).opacity(0.1) : Color.white)
-                .frame(width: 50, height: 60)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(isActive ? Color(red: 0.1, green: 0.2, blue: 0.4) : Color.gray.opacity(0.3), lineWidth: isActive ? 2 : 1)
-                )
-            
-            if digit.isEmpty {
-                if isActive {
-                    Rectangle()
-                        .fill(Color(red: 0.1, green: 0.2, blue: 0.4))
-                        .frame(width: 2, height: 20)
-                        .opacity(0.8)
-                }
-            } else {
-                Text(digit)
-                    .font(.system(size: 24, weight: .bold))
-                    .foregroundColor(Color(red: 0.1, green: 0.2, blue: 0.4))
             }
         }
     }
