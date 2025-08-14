@@ -169,6 +169,7 @@ private struct NewsRow: View {
 		.padding(.vertical, 4)
 		.scaleEffect(isPressed ? 0.98 : 1.0)
 		.animation(.spring(response: 0.5, dampingFraction: 0.8), value: isPressed)
+		.contentShape(Rectangle())
 		.onLongPressGesture(minimumDuration: 0, maximumDistance: .infinity, pressing: { pressing in
 			withAnimation(DesignSystem.Animations.easeInOut) { isPressed = pressing }
 		}, perform: {})
