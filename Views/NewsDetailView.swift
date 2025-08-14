@@ -6,6 +6,7 @@ struct NewsDetailView: View {
 	@Environment(\.presentationMode) private var presentationMode
 	@State private var showSafari = false
 	@State private var animateContent = false
+    @State private var showFull = false
 
 	var body: some View {
 		ZStack {
@@ -16,7 +17,7 @@ struct NewsDetailView: View {
 					VStack(alignment: .leading, spacing: DesignSystem.Spacing.lg) {
 						Header()
 						DividerView()
-						Content()
+                    SummaryOrContent()
 						PrimaryButton()
 						Spacer(minLength: 100)
 					}
@@ -87,15 +88,30 @@ struct NewsDetailView: View {
 		Rectangle().fill(DesignSystem.Colors.textTertiary.opacity(0.2)).frame(height: 1).padding(.horizontal, DesignSystem.Spacing.lg)
 	}
 
-	@ViewBuilder private func Content() -> some View {
-		VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
-			Text(article.content)
-				.font(DesignSystem.Typography.body)
-				.foregroundColor(DesignSystem.Colors.textPrimary)
-				.lineSpacing(6)
-		}
-		.padding(.horizontal, DesignSystem.Spacing.lg)
-	}
+    @ViewBuilder private func SummaryOrContent() -> some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+            let summary = ContentSummaryService.shared.summary(for: article, maxSentences: 3)
+            Text(showFull ? article.content : summary)
+                .font(DesignSystem.Typography.body)
+                .foregroundColor(DesignSystem.Colors.textPrimary)
+                .lineSpacing(6)
+
+            if !showFull {
+                Button(action: { withAnimation(DesignSystem.Animations.easeInOut) { showFull = true } }) {
+                    HStack(spacing: 6) {
+                        Text("Read more")
+                            .font(DesignSystem.Typography.footnote.weight(.semibold))
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 12, weight: .semibold))
+                    }
+                }
+                .buttonStyle(PlainButtonStyle())
+                .foregroundColor(DesignSystem.Colors.blue)
+                .accessibilityLabel("Expand to full article")
+            }
+        }
+        .padding(.horizontal, DesignSystem.Spacing.lg)
+    }
 
 	@ViewBuilder private func PrimaryButton() -> some View {
 		Button(action: { showSafari = true }) {
