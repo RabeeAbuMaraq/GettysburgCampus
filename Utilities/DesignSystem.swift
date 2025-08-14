@@ -30,6 +30,8 @@ struct DesignSystem {
         static let success = Color(hex: "#10B981")
         static let warning = Color(hex: "#F59E0B")
         static let error = Color(hex: "#EF4444")
+        static let purple = Color(hex: "#8B5CF6")
+        static let indigo = Color(hex: "#6366F1")
     }
     
     // MARK: - Typography
@@ -44,6 +46,7 @@ struct DesignSystem {
         static let subheadline = Font.system(size: 15, weight: .medium, design: .rounded)
         static let footnote = Font.system(size: 14, weight: .medium, design: .rounded)
         static let caption = Font.system(size: 12, weight: .medium, design: .rounded)
+        static let caption2 = Font.system(size: 10, weight: .medium, design: .rounded)
     }
     
     // MARK: - Spacing

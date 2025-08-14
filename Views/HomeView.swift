@@ -26,6 +26,9 @@ struct HomeView: View {
                             TodayEventsSection()
                         }
                         
+                        // Latest News
+                        NewsSection()
+                        
                         // Campus Updates
                         CampusUpdatesSection()
                     }
@@ -120,6 +123,13 @@ struct HomeQuickActionsSection: View {
             destination: .events
         ),
         QuickAction(
+            icon: "calendar.badge.clock",
+            title: "Calendar",
+            subtitle: "Monthly view",
+            color: DesignSystem.Colors.purple,
+            destination: .calendar
+        ),
+        QuickAction(
             icon: "map.fill",
             title: "Campus Map",
             subtitle: "Find your way around",
@@ -207,6 +217,10 @@ struct TodayEventsSection: View {
     @StateObject private var eventsService = EventsService.shared
     @State private var animateEvents = false
     
+    // New state variables for selected event and showing detail modal
+    @State private var selectedEvent: CampusEvent? = nil
+    @State private var showingEventDetail = false
+    
     var todayEvents: [CampusEvent] {
         eventsService.events.filter { Calendar.current.isDateInToday($0.start) }
     }
@@ -231,10 +245,14 @@ struct TodayEventsSection: View {
                 EmptyTodayEvents()
             } else {
                 ForEach(Array(todayEvents.prefix(3).enumerated()), id: \.element.id) { index, event in
-                    TodayEventCard(event: event)
-                        .opacity(animateEvents ? 1 : 0)
-                        .offset(y: animateEvents ? 0 : 20)
-                        .animation(DesignSystem.Animations.spring.delay(Double(index) * 0.1), value: animateEvents)
+                    TodayEventCard(event: event) {
+                        selectedEvent = event
+                        showingEventDetail = true
+                    }
+                    .id("\(event.id)_\(index)")
+                    .opacity(animateEvents ? 1 : 0)
+                    .offset(y: animateEvents ? 0 : 20)
+                    .animation(DesignSystem.Animations.spring.delay(Double(index) * 0.1), value: animateEvents)
                 }
             }
         }
@@ -243,17 +261,25 @@ struct TodayEventsSection: View {
                 animateEvents = true
             }
         }
+        // Present the event detail modal same as EventsView
+        .sheet(isPresented: $showingEventDetail) {
+            if let event = selectedEvent {
+                EventDetailModal(event: event)
+            }
+        }
     }
 }
 
 // MARK: - Today Event Card
 struct TodayEventCard: View {
     let event: CampusEvent
+    // Accept onTap closure for tap action (new)
+    var onTap: () -> Void
     @State private var isPressed = false
     
     var body: some View {
         Button(action: {
-            // Navigate to event detail
+            onTap()
         }) {
             HStack(spacing: DesignSystem.Spacing.md) {
                 // Time indicator
@@ -275,17 +301,12 @@ struct TodayEventCard: View {
                         .foregroundColor(DesignSystem.Colors.textPrimary)
                         .lineLimit(2)
                     
-                    if !event.location.isEmpty {
-                        HStack(spacing: DesignSystem.Spacing.xs) {
-                            Image(systemName: "location.fill")
-                                .font(.system(size: 12))
-                                .foregroundColor(DesignSystem.Colors.blue)
-                            
-                            Text(event.location)
-                                .font(DesignSystem.Typography.footnote)
-                                .foregroundColor(DesignSystem.Colors.textSecondary)
-                                .lineLimit(1)
-                        }
+                    // New subtext logic: show organizer or category or first sentence of description
+                    if let subtext = eventSubtext {
+                        Text(subtext)
+                            .font(DesignSystem.Typography.footnote)
+                            .foregroundColor(DesignSystem.Colors.textSecondary)
+                            .lineLimit(1)
                     }
                 }
                 
@@ -305,6 +326,28 @@ struct TodayEventCard: View {
                 isPressed = pressing
             }
         }, perform: {})
+    }
+    
+    // Compute subtext from organizer, category, or first sentence of description
+    private var eventSubtext: String? {
+        if let organizer = event.organizer, !organizer.isEmpty {
+            return organizer
+        }
+        if let category = event.category, !category.isEmpty {
+            return category
+        }
+        let desc = event.description.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !desc.isEmpty {
+            // Extract first sentence or line
+            if let firstSentence = desc.split(separator: ".").first {
+                return firstSentence.trimmingCharacters(in: .whitespacesAndNewlines) + "."
+            } else if let firstLine = desc.split(separator: "\n").first {
+                return firstLine.trimmingCharacters(in: .whitespacesAndNewlines)
+            } else {
+                return desc
+            }
+        }
+        return nil
     }
     
     private func formatTime(_ date: Date) -> String {
@@ -438,7 +481,7 @@ struct QuickAction {
 }
 
 enum QuickActionDestination {
-    case dining, events, map, shuttle
+    case dining, events, map, shuttle, calendar
 }
 
 struct CampusUpdate {

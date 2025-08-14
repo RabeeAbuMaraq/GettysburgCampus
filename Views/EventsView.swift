@@ -98,10 +98,6 @@ struct EventsHeaderSection: View {
             HStack {
                 Text("Campus")
                     .font(.system(size: 48, weight: .bold, design: .rounded))
-                    .foregroundColor(Color(hex: "#1f2937"))
-                
-                Text("Events")
-                    .font(.system(size: 48, weight: .bold, design: .rounded))
                     .foregroundStyle(
                         LinearGradient(
                             colors: [Color(hex: "#CC4E00"), Color(hex: "#043B82")],
@@ -109,17 +105,41 @@ struct EventsHeaderSection: View {
                             endPoint: .trailing
                         )
                     )
+                
+                Spacer()
+                
+                // Calendar button
+                NavigationLink(destination: EventsCalendarView()) {
+                    Image(systemName: "calendar")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(width: 44, height: 44)
+                        .background(
+                            LinearGradient(
+                                colors: [Color(hex: "#CC4E00"), Color(hex: "#043B82")],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .clipShape(Circle())
+                        .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
+                }
             }
+            .padding(.horizontal, 20)
             
-            // Description
-            Text("Discover what's happening on campus. From academic lectures to social gatherings, stay connected with the Gettysburg community.")
-                .font(.system(size: 18, weight: .medium))
-                .foregroundColor(Color(hex: "#6b7280"))
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 32)
+            Text("Events")
+                .font(.system(size: 48, weight: .bold, design: .rounded))
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [Color(hex: "#CC4E00"), Color(hex: "#043B82")],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .padding(.horizontal, 20)
         }
-        .padding(.top, 20)
-        .padding(.bottom, 32)
+        .padding(.top, 60)
+        .padding(.bottom, 20)
     }
 }
 
@@ -253,10 +273,12 @@ struct EventsContentSection: View {
         let now = Date()
         let oneMonthFromNow = Calendar.current.date(byAdding: .month, value: 1, to: now) ?? now
         
+        // Filter events to only show those within one month from now
         var events = eventsService.events.filter { event in
             event.start >= now && event.start <= oneMonthFromNow
         }
         
+        // Apply additional filters
         switch selectedFilter {
         case .all:
             break
@@ -486,9 +508,31 @@ struct EventCard: View {
     
     @State private var isPressed = false
     
+    private var eventSubtext: String? {
+        if let organizer = event.organizer, !organizer.isEmpty {
+            return organizer
+        }
+        if let category = event.category, !category.isEmpty {
+            return category
+        }
+        let desc = event.description.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !desc.isEmpty {
+            if let firstSentence = desc.split(separator: ".").first {
+                return firstSentence.trimmingCharacters(in: .whitespacesAndNewlines) + "."
+            } else if let firstLine = desc.split(separator: "\n").first {
+                return firstLine.trimmingCharacters(in: .whitespacesAndNewlines)
+            } else {
+                return desc
+            }
+        }
+        return nil
+    }
+    
     var body: some View {
-        Button(action: onTap) {
-            VStack(alignment: .leading, spacing: 16) {
+        Button(action: {
+            onTap()
+        }) {
+            VStack(alignment: .leading, spacing: 12) {
                 // Time and duration
                 HStack {
                     Text(formatTime(event.start))
@@ -513,6 +557,14 @@ struct EventCard: View {
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
                 
+                // Subtext: organizer, category, or summary
+                if let subtext = eventSubtext {
+                    Text(subtext)
+                        .font(.system(size: 14, weight: .regular))
+                        .foregroundColor(Color(hex: "#6b7280"))
+                        .lineLimit(1)
+                }
+                
                 // Location
                 if !event.location.isEmpty {
                     HStack(spacing: 8) {
@@ -525,15 +577,6 @@ struct EventCard: View {
                             .foregroundColor(Color(hex: "#043B82"))
                             .lineLimit(1)
                     }
-                }
-                
-                // Description preview
-                if !event.description.isEmpty {
-                    Text(event.description)
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(Color(hex: "#6b7280"))
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
                 }
                 
                 // Tap indicator
@@ -678,8 +721,10 @@ struct EventDetailModal: View {
                         
                         // Action buttons
                         VStack(spacing: 12) {
-                            if let url = event.url {
-                                Link(destination: URL(string: url) ?? URL(string: "https://engage.gettysburg.edu")!) {
+                            if let urlString = event.url, let url = URL(string: urlString) {
+                                Button(action: {
+                                    UIApplication.shared.open(url)
+                                }) {
                                     HStack {
                                         Image(systemName: "arrow.up.right.square")
                                             .font(.system(size: 16, weight: .medium))
@@ -691,7 +736,7 @@ struct EventDetailModal: View {
                                     .padding(.vertical, 16)
                                     .background(
                                         LinearGradient(
-                                            colors: [Color(hex: "#043B82"), Color(hex: "#1e40af")],
+                                            colors: [Color(hex: "#CC4E00"), Color(hex: "#043B82")],
                                             startPoint: .leading,
                                             endPoint: .trailing
                                         )

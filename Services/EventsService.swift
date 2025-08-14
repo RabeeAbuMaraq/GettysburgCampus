@@ -66,8 +66,20 @@ class EventsService: ObservableObject {
                     print("📊 Received \(response.events.count) events from API")
                     let convertedEvents = response.events.compactMap { self.convertToCampusEvent($0) }
                     print("✅ Converted \(convertedEvents.count) events successfully")
+                    
+                    // Filter events to only show those within one month from now
+                    let now = Date()
+                    let oneMonthFromNow = Calendar.current.date(byAdding: .month, value: 1, to: now) ?? now
+                    
+                    self.events = convertedEvents
+                        .filter { event in
+                            event.start >= now && event.start <= oneMonthFromNow
+                        }
+                        .sorted { $0.start < $1.start }
+                    
+                    print("📅 Filtered to \(self.events.count) events within one month")
+                    
                     self.lastUpdated = ISO8601DateFormatter().date(from: response.metadata.lastUpdated)
-                    self.events = convertedEvents.sorted { $0.start < $1.start }
                 }
             )
             .store(in: &cancellables)
