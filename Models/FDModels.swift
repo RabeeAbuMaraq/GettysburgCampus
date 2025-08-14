@@ -26,6 +26,12 @@ struct FDMealPeriod: Identifiable, Hashable, Codable {
             ?? c.decode(String.self, forKey: .mealPeriodName)
         self.init(id: id, name: name)
     }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(name, forKey: .name)
+    }
 }
 
 // Items often have a lot of fields.
