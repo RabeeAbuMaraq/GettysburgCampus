@@ -88,18 +88,18 @@ struct NewsListView: View {
 	}
 
 	@ViewBuilder private func ListContent() -> some View {
-		ScrollView {
-			LazyVStack(spacing: DesignSystem.Spacing.lg) {
-				ForEach(filtered) { article in
-					NavigationLink(destination: NewsDetailView(article: article)) {
-						NewsRow(article: article)
-					}
-					.buttonStyle(PlainButtonStyle())
+		List {
+			ForEach(filtered) { article in
+				NavigationLink(destination: NewsDetailView(article: article)) {
+					NewsRow(article: article)
 				}
+				.listRowBackground(Color.clear)
+				.listRowSeparator(.hidden)
+				.listRowInsets(EdgeInsets(top: 4, leading: DesignSystem.Spacing.lg, bottom: 4, trailing: DesignSystem.Spacing.lg))
 			}
-			.padding(.horizontal, DesignSystem.Spacing.lg)
-			.padding(.bottom, 100)
 		}
+		.listStyle(PlainListStyle())
+		.background(DesignSystem.Colors.backgroundGradient)
 	}
 
 	@ViewBuilder private func LoadingState() -> some View {
@@ -137,43 +137,36 @@ private struct CategoryPill: View {
 	}
 }
 
-private struct NewsRow: View {
-	let article: NewsArticle
-	@State private var isPressed = false
+	private struct NewsRow: View {
+		let article: NewsArticle
 
-	var body: some View {
-		HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
-			Thumbnail()
-			VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
-				HStack {
-					CategoryBadge(category: article.category)
-					Spacer()
-					Text(article.timeAgo).font(DesignSystem.Typography.caption).foregroundColor(DesignSystem.Colors.textSecondary)
+		var body: some View {
+			HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
+				Thumbnail()
+				VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
+					HStack {
+						CategoryBadge(category: article.category)
+						Spacer()
+						Text(article.timeAgo).font(DesignSystem.Typography.caption).foregroundColor(DesignSystem.Colors.textSecondary)
+					}
+					Text(article.title).font(DesignSystem.Typography.headline).foregroundColor(DesignSystem.Colors.textPrimary).lineLimit(2)
+					if !article.shortSummary.isEmpty {
+						Text(article.shortSummary).font(DesignSystem.Typography.footnote).foregroundColor(DesignSystem.Colors.textSecondary).lineLimit(2)
+					}
 				}
-				Text(article.title).font(DesignSystem.Typography.headline).foregroundColor(DesignSystem.Colors.textPrimary).lineLimit(2)
-				if !article.shortSummary.isEmpty {
-					Text(article.shortSummary).font(DesignSystem.Typography.footnote).foregroundColor(DesignSystem.Colors.textSecondary).lineLimit(2)
-				}
+				Spacer(minLength: 0)
 			}
-			Spacer(minLength: 0)
+			.padding(DesignSystem.Spacing.lg)
+			.background(
+				RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.xl)
+					.fill(.ultraThinMaterial)
+			)
+			.overlay(
+				RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.xl)
+					.stroke(DesignSystem.Colors.cardBorder, lineWidth: 1)
+			)
+			.padding(.vertical, 4)
 		}
-		.padding(DesignSystem.Spacing.lg)
-		.background(
-			RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.xl)
-				.fill(.ultraThinMaterial)
-		)
-		.overlay(
-			RoundedRectangle(cornerRadius: DesignSystem.CornerRadius.xl)
-				.stroke(DesignSystem.Colors.cardBorder, lineWidth: 1)
-		)
-		.padding(.vertical, 4)
-		.scaleEffect(isPressed ? 0.98 : 1.0)
-		.animation(.spring(response: 0.5, dampingFraction: 0.8), value: isPressed)
-		.contentShape(Rectangle())
-		.onLongPressGesture(minimumDuration: 0, maximumDistance: .infinity, pressing: { pressing in
-			withAnimation(DesignSystem.Animations.easeInOut) { isPressed = pressing }
-		}, perform: {})
-	}
 
 	@ViewBuilder private func Thumbnail() -> some View {
 		if let urlString = article.imageURL, let url = URL(string: urlString), !urlString.isEmpty {
