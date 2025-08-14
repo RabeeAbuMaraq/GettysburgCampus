@@ -81,52 +81,38 @@ final class FDClient {
         let path = FDConfig.apiPrefix + "/mealPeriods"
         var req = try makeRequest(path: path, query: [
             "IsActive": "1",
-            "LocationId": String(locationId),
-            "tenantId": String(FDConfig.tenantId),
-            "accountId": String(FDConfig.accountId)
+            "LocationId": String(locationId)
         ])
 
         // This endpoint appears public for Gettysburg; try without a token first.
         do {
+            // Cache: 24h
+            if let cached = FDCaching.loadIfFresh(from: FDCaching.mealPeriodsURL(locationId: locationId), maxAgeSeconds: 24*3600),
+               let periods = try? decodeMealPeriods(from: cached) {
+                if debugLoggingEnabled { print("FDClient: mealPeriods cache hit loc=\(locationId) count=\(periods.count)") }
+                return periods
+            }
             if debugLoggingEnabled { print("FDClient: GET \(req.url?.absoluteString ?? "")") }
             let (data, resp) = try await session.data(for: req)
             if let http = resp as? HTTPURLResponse, http.statusCode == 401 {
                 try await refreshToken()
                 req = try makeRequest(path: path, query: [
                     "IsActive":"1",
-                    "LocationId": String(locationId),
-                    "tenantId": String(FDConfig.tenantId),
-                    "accountId": String(FDConfig.accountId)
+                    "LocationId": String(locationId)
                 ])
                 if debugLoggingEnabled { print("FDClient: RETRY GET \(req.url?.absoluteString ?? "") after 401") }
                 let (data2, resp2) = try await session.data(for: req)
                 guard (resp2 as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
-                return try decodeMealPeriods(from: data2)
+                let periods = try decodeMealPeriods(from: data2)
+                FDCaching.save(data2, to: FDCaching.mealPeriodsURL(locationId: locationId))
+                if debugLoggingEnabled { print("FDClient: mealPeriods decoded count=\(periods.count) for loc=\(locationId)") }
+                return periods
             }
             if let http = resp as? HTTPURLResponse, http.statusCode == 200 {
-                return try decodeMealPeriods(from: data)
-            }
-            // Fallback attempts with alternate query param casing/values
-            let fallbackQueries: [[String: String]] = [
-                ["IsActive": "true", "LocationId": String(locationId)],
-                ["isActive": "1", "locationId": String(locationId)],
-                ["IsActive": "1", "LocationId": String(locationId), "tenantId": String(FDConfig.tenantId)],
-                ["IsActive": "1", "LocationId": String(locationId), "accountId": String(FDConfig.accountId)]
-            ]
-            for q in fallbackQueries {
-                req = try makeRequest(path: path, query: q)
-                if debugLoggingEnabled { print("FDClient: FALLBACK GET \(req.url?.absoluteString ?? "")") }
-                let (d, r) = try await session.data(for: req)
-                if let h = r as? HTTPURLResponse, h.statusCode == 200 {
-                    return try decodeMealPeriods(from: d)
-                } else if let h = r as? HTTPURLResponse, h.statusCode == 401 {
-                    try await refreshToken()
-                    req = try makeRequest(path: path, query: q)
-                    let (d2, r2) = try await session.data(for: req)
-                    if (r2 as? HTTPURLResponse)?.statusCode == 200 {
-                        return try decodeMealPeriods(from: d2)
-                    }
-                }
+                let periods = try decodeMealPeriods(from: data)
+                FDCaching.save(data, to: FDCaching.mealPeriodsURL(locationId: locationId))
+                if debugLoggingEnabled { print("FDClient: mealPeriods decoded count=\(periods.count) for loc=\(locationId)") }
+                return periods
             }
             if debugLoggingEnabled {
                 let status = (resp as? HTTPURLResponse)?.statusCode ?? -1
@@ -172,20 +158,28 @@ final class FDClient {
 
     // Example meals URL you provided:
     // /api/v1/data-locator-webapi/19/meals?menuId=0&accountId=4&locationId=4&mealPeriodId=4&tenantId=19&monthId=8&fromDate=2025/08/01&endDate=2025/08/31&timeOffset=480
-    func meals(locationId: Int, mealPeriodId: Int, from ymd: String, to ymdTo: String, timeOffsetMinutes: Int) async throws -> [FDMealItem] {
+    func meals(locationId: Int, mealPeriodId: Int, selectedYMD: String, rangeFromYMD: String, rangeToYMD: String, timeOffsetMinutes: Int) async throws -> [FDMealItem] {
         let path = FDConfig.apiPrefix + "/meals"
-        var req = try makeRequest(path: path, query: [
+        // monthId derived from the selected date (yyyy/MM/dd)
+        let monthIdString: String = {
+            let parts = selectedYMD.split(separator: "/")
+            if parts.count >= 2, let mInt = Int(parts[1]) { return String(mInt) }
+            return ""
+        }()
+        var query: [String: String] = [
             "menuId": "0",
             "accountId": String(FDConfig.accountId),
             "locationId": String(locationId),
             "mealPeriodId": String(mealPeriodId),
             "tenantId": String(FDConfig.tenantId),
-            "fromDate": ymd,   // "yyyy/MM/dd"
-            "endDate": ymdTo, // same day or range
-            "timeOffset": String(timeOffsetMinutes)
-        ])
+            "fromDate": rangeFromYMD,   // "yyyy/MM/dd"
+            "endDate": rangeToYMD, // range (e.g., month)
+            "timeOffset": String(abs(timeOffsetMinutes))
+        ]
+        if !monthIdString.isEmpty { query["monthId"] = monthIdString }
+        var req = try makeRequest(path: path, query: query)
 
-        if bearer == nil { try await refreshToken() }
+        // Do not prefetch token; retry on 401 instead
 
         func decodeItems(from data: Data) throws -> [FDMealItem] {
             // The payload shape can vary. Use a resilient extractor.
@@ -193,8 +187,43 @@ final class FDClient {
             // that looks like menu items with a name-like key.
             // FD meals often returns { result: [ ... ] }
             if let root = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any],
-               let result = root["result"] {
-                return try decodeItems(from: try JSONSerialization.data(withJSONObject: result))
+               let result = root["result"] as? [[String: Any]] {
+                // Filter by selected date if present
+                let targetDateDashed = selectedYMD.replacingOccurrences(of: "/", with: "-")
+                let dayObjects = result.filter { day in
+                    if let d = day["strMenuForDate"] as? String { return d == targetDateDashed }
+                    if let d2 = day["strMenuToDate"] as? String { return d2 == targetDateDashed }
+                    return false
+                }
+                var collected: [FDMealItem] = []
+                for day in dayObjects {
+                    if let recipes = day["menuRecipiesData"] as? [[String: Any]] {
+                        for r in recipes {
+                            let name = (r["componentEnglishName"] ?? r["componentName"]) as? String
+                            guard let n = name, !n.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
+                            let idVal = (r["menuDetailId"] ?? r["componentId"]) as? CustomStringConvertible
+                            let station = (r["category"] ?? r["menuTypeName"]) as? String
+                            let desc = (r["componentEnglishDescription"] ?? r["componentSpanishDescription"]) as? String
+                            let caloriesInt: Int? = {
+                                if let c = r["calories"] as? Int { return c }
+                                if let c = r["calories"] as? String, let v = Int(c.trimmingCharacters(in: .whitespaces)) { return v }
+                                return nil
+                            }()
+                            let allergens = (r["allergenName"] as? String)?.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+                            let attributes = (r["dietaryName"] as? String)?.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+                            collected.append(FDMealItem(
+                                id: String(describing: idVal ?? UUID().uuidString),
+                                name: n,
+                                station: station?.trimmingCharacters(in: .whitespaces),
+                                description: (desc?.trimmingCharacters(in: .whitespaces)).flatMap { $0.isEmpty ? nil : $0 },
+                                calories: caloriesInt,
+                                allergens: (allergens?.isEmpty == true) ? nil : allergens,
+                                attributes: (attributes?.isEmpty == true) ? nil : attributes
+                            ))
+                        }
+                    }
+                }
+                return collected
             }
             let any = try JSONSerialization.jsonObject(with: data, options: []) as? Any
             var results: [FDMealItem] = []
@@ -202,19 +231,20 @@ final class FDClient {
                 if let arr = node as? [[String: Any]] {
                     for dict in arr {
                         // Common name keys used by FD
-                        let name = (dict["name"] ?? dict["itemName"] ?? dict["productName"]) as? String
+                        let name = (dict["name"] ?? dict["itemName"] ?? dict["productName"] ?? dict["componentEnglishName"] ?? dict["componentName"]) as? String
                         guard let n = name, !n.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
-                        let id = (dict["id"] ?? dict["itemId"] ?? dict["productId"] ?? UUID().uuidString) as? CustomStringConvertible
-                        let station = (dict["station"] ?? dict["stationName"]) as? String
-                        let desc = (dict["description"] ?? dict["itemDescription"]) as? String
+                        let id = (dict["id"] ?? dict["itemId"] ?? dict["productId"] ?? dict["menuDetailId"] ?? dict["componentId"] ?? UUID().uuidString) as? CustomStringConvertible
+                        let station = (dict["station"] ?? dict["stationName"] ?? dict["category"] ?? dict["menuTypeName"]) as? String
+                        let desc = (dict["description"] ?? dict["itemDescription"] ?? dict["componentEnglishDescription"] ?? dict["componentSpanishDescription"]) as? String
                         let caloriesInt: Int? = {
                             if let c = dict["calories"] as? Int { return c }
                             if let c = dict["calories"] as? String, let v = Int(c) { return v }
                             return nil
                         }()
-                        let allergens = dict["allergens"] as? [String]
-                        let attributes = (dict["attributes"] as? [String])
-                            ?? (dict["dietaryAttributes"] as? [String])
+                        var allergens: [String]? = dict["allergens"] as? [String]
+                        if allergens == nil, let a = dict["allergenName"] as? String { allergens = a.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) } }
+                        var attributes: [String]? = (dict["attributes"] as? [String]) ?? (dict["dietaryAttributes"] as? [String])
+                        if attributes == nil, let a = dict["dietaryName"] as? String { attributes = a.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) } }
                         let item = FDMealItem(
                             id: String(describing: id ?? UUID().uuidString),
                             name: n,
@@ -239,24 +269,26 @@ final class FDClient {
         }
 
         if debugLoggingEnabled { print("FDClient: GET \(req.url?.absoluteString ?? "")") }
+        // Cache: per location/period/month, 6 hours
+        let monthKey = selectedYMD.prefix(7).replacingOccurrences(of: "/", with: "-")
+        let cacheURL = FDCaching.mealsURL(locationId: locationId, mealPeriodId: mealPeriodId, monthKey: String(monthKey))
+        if let cached = FDCaching.loadIfFresh(from: cacheURL, maxAgeSeconds: 6*3600) {
+            let items = try decodeItems(from: cached)
+            if debugLoggingEnabled { print("FDClient: meals cache hit loc=\(locationId) period=\(mealPeriodId) count=\(items.count)") }
+            return items
+        }
         let (data, resp) = try await session.data(for: req)
         if let http = resp as? HTTPURLResponse, http.statusCode == 401 {
             try await refreshToken()
             // rebuild request to attach fresh Authorization header
-            req = try makeRequest(path: path, query: [
-                "menuId": "0",
-                "accountId": String(FDConfig.accountId),
-                "locationId": String(locationId),
-                "mealPeriodId": String(mealPeriodId),
-                "tenantId": String(FDConfig.tenantId),
-                "fromDate": ymd,
-                "endDate": ymdTo,
-                "timeOffset": String(timeOffsetMinutes)
-            ])
+            var retryQuery = query
+            req = try makeRequest(path: path, query: retryQuery)
             if debugLoggingEnabled { print("FDClient: RETRY GET \(req.url?.absoluteString ?? "") after 401") }
             let (data2, resp2) = try await session.data(for: req)
             guard (resp2 as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
-            return try decodeItems(from: data2)
+            let items = try decodeItems(from: data2)
+            FDCaching.save(data2, to: cacheURL)
+            return items
         }
         guard (resp as? HTTPURLResponse)?.statusCode == 200 else {
             if debugLoggingEnabled {
@@ -266,7 +298,10 @@ final class FDClient {
             }
             throw URLError(.badServerResponse)
         }
-        return try decodeItems(from: data)
+        let items = try decodeItems(from: data)
+        FDCaching.save(data, to: cacheURL)
+        if debugLoggingEnabled { print("FDClient: meals decoded count=\(items.count) for loc=\(locationId) period=\(mealPeriodId)") }
+        return items
     }
 }
 

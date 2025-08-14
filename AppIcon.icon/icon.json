@@ -1,0 +1,130 @@
+{
+  "fill" : {
+    "solid" : "display-p3:1.00000,0.94095,0.82074,1.00000"
+  },
+  "groups" : [
+    {
+      "blur-material" : 0.5,
+      "layers" : [
+        {
+          "fill" : "none",
+          "image-name" : "Untitled-1 - 15-08-2025 04-34-14(1)-2.png",
+          "name" : "Untitled-1 - 15-08-2025 04-34-14(1)-2",
+          "position" : {
+            "scale" : 1,
+            "translation-in-points" : [
+              0,
+              74
+            ]
+          }
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.2
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.44
+      }
+    },
+    {
+      "blend-mode" : "normal",
+      "blur-material" : null,
+      "layers" : [
+        {
+          "blend-mode" : "normal",
+          "fill" : "none",
+          "glass" : true,
+          "image-name" : "Untitled-1 - 15-08-2025 04-34-14(1).png",
+          "name" : "Untitled-1 - 15-08-2025 04-34-14(1)",
+          "position" : {
+            "scale" : 1,
+            "translation-in-points" : [
+              0,
+              17
+            ]
+          }
+        }
+      ],
+      "shadow" : {
+        "kind" : "layer-color",
+        "opacity" : 1
+      },
+      "specular" : true,
+      "translucency" : {
+        "enabled" : false,
+        "value" : 1
+      }
+    },
+    {
+      "blur-material" : 0.5,
+      "hidden" : false,
+      "layers" : [
+        {
+          "image-name" : "Untitled-1 - 15-08-2025 04-34-14.png",
+          "name" : "Untitled-1 - 15-08-2025 04-34-14",
+          "position" : {
+            "scale" : 1,
+            "translation-in-points" : [
+              0,
+              17
+            ]
+          }
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.77
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.44
+      }
+    },
+    {
+      "blur-material" : 0.5,
+      "layers" : [
+        {
+          "blend-mode" : "normal",
+          "fill" : "automatic",
+          "glass-specializations" : [
+            {
+              "value" : true
+            },
+            {
+              "idiom" : "square",
+              "value" : true
+            }
+          ],
+          "hidden" : false,
+          "image-name" : "Untitled-1.png",
+          "name" : "Untitled-1",
+          "position" : {
+            "scale" : 1.13,
+            "translation-in-points" : [
+              0,
+              68
+            ]
+          }
+        }
+      ],
+      "lighting" : "individual",
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "specular" : true,
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.44
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "circles" : [
+      "watchOS"
+    ],
+    "squares" : "shared"
+  }
+}
