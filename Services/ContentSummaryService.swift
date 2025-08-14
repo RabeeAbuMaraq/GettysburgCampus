@@ -72,7 +72,7 @@ final class ContentSummaryService {
 
 	private static func tokenize(_ text: String) -> [String] {
 		return text.lowercased()
-			.replacingOccurrences(of: "[^a-z0-9\t\s]", with: " ", options: .regularExpression)
+			.replacingOccurrences(of: "[^a-z0-9\\t\\s]", with: " ", options: .regularExpression)
 			.split { !$0.isLetter && !$0.isNumber }
 			.map { String($0) }
 	}
