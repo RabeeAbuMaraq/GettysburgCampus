@@ -22,7 +22,7 @@ struct ContentView: View {
                         }
                         .tag(1)
                     
-                    DiningMenuView()
+                    DiningView()
                         .tabItem {
                             Image(systemName: "fork.knife")
                             Text("Dining")

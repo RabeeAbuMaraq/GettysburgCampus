@@ -156,13 +156,10 @@ struct HomeQuickActionsSection: View {
                 GridItem(.flexible())
             ], spacing: DesignSystem.Spacing.md) {
                 ForEach(Array(quickActions.enumerated()), id: \.offset) { index, action in
-                    NavigationLink(destination: destinationView(for: action.destination)) {
-                        HomeQuickActionCard(action: action)
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    .opacity(animateActions ? 1 : 0)
-                    .offset(y: animateActions ? 0 : 30)
-                    .animation(DesignSystem.Animations.Animations.spring.delay(Double(index) * 0.1), value: animateActions)
+                    HomeQuickActionCard(action: action)
+                        .opacity(animateActions ? 1 : 0)
+                        .offset(y: animateActions ? 0 : 30)
+                        .animation(DesignSystem.Animations.spring.delay(Double(index) * 0.1), value: animateActions)
                 }
             }
         }
@@ -172,50 +169,46 @@ struct HomeQuickActionsSection: View {
             }
         }
     }
-
-    @ViewBuilder
-    private func destinationView(for destination: QuickActionDestination) -> some View {
-        switch destination {
-        case .dining:
-            DiningView()
-        case .events:
-            EventsView()
-        case .calendar:
-            EventsCalendarView()
-        case .map:
-            CampusMapView()
-        case .shuttle:
-            MoreView() // Placeholder
-        }
-    }
 }
 
 // MARK: - Quick Action Card
 struct HomeQuickActionCard: View {
     let action: QuickAction
+    @State private var isPressed = false
     
     var body: some View {
-        VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
-            HStack {
-                Image(systemName: action.icon)
-                    .font(.system(size: 24, weight: .semibold))
-                    .foregroundColor(action.color)
-                Spacer()
+        Button(action: {
+            // Navigate to destination
+        }) {
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+                HStack {
+                    Image(systemName: action.icon)
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundColor(action.color)
+                    Spacer()
+                }
+                
+                VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
+                    Text(action.title)
+                        .font(DesignSystem.Typography.headline)
+                        .foregroundColor(DesignSystem.Colors.textPrimary)
+                    
+                    Text(action.subtitle)
+                        .font(DesignSystem.Typography.footnote)
+                        .foregroundColor(DesignSystem.Colors.textSecondary)
+                }
             }
-
-            VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
-                Text(action.title)
-                    .font(DesignSystem.Typography.headline)
-                    .foregroundColor(DesignSystem.Colors.textPrimary)
-
-                Text(action.subtitle)
-                    .font(DesignSystem.Typography.footnote)
-                    .foregroundColor(DesignSystem.Colors.textSecondary)
-            }
+            .padding(DesignSystem.Spacing.lg)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .glassCard()
         }
-        .padding(DesignSystem.Spacing.lg)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .glassCard()
+        .buttonStyle(PlainButtonStyle())
+        .scaleEffect(isPressed ? 0.98 : 1.0)
+        .onLongPressGesture(minimumDuration: 0, maximumDistance: .infinity, pressing: { pressing in
+            withAnimation(DesignSystem.Animations.easeInOut) {
+                isPressed = pressing
+            }
+        }, perform: {})
     }
 }
 
