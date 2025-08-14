@@ -29,7 +29,9 @@ final class FDClient {
         comps.queryItems = query.map { URLQueryItem(name: $0.key, value: $0.value) }
         guard let url = comps.url else { throw URLError(.badURL) }
         var req = URLRequest(url: url)
-        req.setValue("application/json", forHTTPHeaderField: "Accept")
+        req.setValue("application/json, text/plain, */*", forHTTPHeaderField: "Accept")
+        req.setValue("https://gettysburg.fdmealplanner.com", forHTTPHeaderField: "Origin")
+        req.setValue("https://gettysburg.fdmealplanner.com/", forHTTPHeaderField: "Referer")
         if let b = bearer { req.setValue("Bearer \(b)", forHTTPHeaderField: "Authorization") }
         return req
     }
@@ -74,7 +76,9 @@ final class FDClient {
         let path = FDConfig.apiPrefix + "/mealPeriods"
         var req = try makeRequest(path: path, query: [
             "IsActive": "1",
-            "LocationId": String(locationId)
+            "LocationId": String(locationId),
+            "tenantId": String(FDConfig.tenantId),
+            "accountId": String(FDConfig.accountId)
         ])
 
         // Call with token. If we do not have one yet, grab it first.
@@ -84,14 +88,19 @@ final class FDClient {
             let (data, resp) = try await URLSession.shared.data(for: req)
             if let http = resp as? HTTPURLResponse, http.statusCode == 401 {
                 try await refreshToken()
-                req = try makeRequest(path: path, query: ["IsActive":"1","LocationId": String(locationId)])
+                req = try makeRequest(path: path, query: [
+                    "IsActive":"1",
+                    "LocationId": String(locationId),
+                    "tenantId": String(FDConfig.tenantId),
+                    "accountId": String(FDConfig.accountId)
+                ])
                 if debugLoggingEnabled { print("FDClient: RETRY GET \(req.url?.absoluteString ?? "") after 401") }
                 let (data2, resp2) = try await URLSession.shared.data(for: req)
                 guard (resp2 as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
-                return try decoder.decode([FDMealPeriod].self, from: data2)
+                return try decodeMealPeriods(from: data2)
             }
             if let http = resp as? HTTPURLResponse, http.statusCode == 200 {
-                return try decoder.decode([FDMealPeriod].self, from: data)
+                return try decodeMealPeriods(from: data)
             }
             // Fallback attempts with alternate query param casing/values
             let fallbackQueries: [[String: String]] = [
@@ -105,13 +114,13 @@ final class FDClient {
                 if debugLoggingEnabled { print("FDClient: FALLBACK GET \(req.url?.absoluteString ?? "")") }
                 let (d, r) = try await URLSession.shared.data(for: req)
                 if let h = r as? HTTPURLResponse, h.statusCode == 200 {
-                    return try decoder.decode([FDMealPeriod].self, from: d)
+                    return try decodeMealPeriods(from: d)
                 } else if let h = r as? HTTPURLResponse, h.statusCode == 401 {
                     try await refreshToken()
                     req = try makeRequest(path: path, query: q)
                     let (d2, r2) = try await URLSession.shared.data(for: req)
                     if (r2 as? HTTPURLResponse)?.statusCode == 200 {
-                        return try decoder.decode([FDMealPeriod].self, from: d2)
+                        return try decodeMealPeriods(from: d2)
                     }
                 }
             }
@@ -124,6 +133,34 @@ final class FDClient {
         } catch {
             throw error
         }
+    }
+
+    private func decodeMealPeriods(from data: Data) throws -> [FDMealPeriod] {
+        // Try plain array first
+        if let arr = try? decoder.decode([FDMealPeriod].self, from: data) {
+            return arr
+        }
+        // Flexible traversal similar to meals
+        let any = try JSONSerialization.jsonObject(with: data, options: [])
+        var results: [FDMealPeriod] = []
+        func walk(_ node: Any) {
+            if let arr = node as? [[String: Any]] {
+                var batch: [FDMealPeriod] = []
+                for dict in arr {
+                    let id = (dict["id"] ?? dict["mealPeriodId"]) as? Int
+                    let name = (dict["name"] ?? dict["mealPeriodName"]) as? String
+                    if let id = id, let name = name {
+                        batch.append(FDMealPeriod(id: id, name: name))
+                    }
+                }
+                if !batch.isEmpty { results.append(contentsOf: batch) }
+            }
+            if let dict = node as? [String: Any] { dict.values.forEach { walk($0) } }
+            if let arr = node as? [Any] { arr.forEach { walk($0) } }
+        }
+        walk(any)
+        if !results.isEmpty { return results }
+        throw URLError(.cannotParseResponse)
     }
 
     // MARK: Meals

@@ -12,7 +12,13 @@ final class DiningRepository: ObservableObject {
             // Get all meal periods per location
             try await api.refreshToken()
             for loc in FDConfig.locations {
-                periodsByLocation[loc.id] = try await api.mealPeriods(locationId: loc.id)
+                do {
+                    let periods = try await api.mealPeriods(locationId: loc.id)
+                    periodsByLocation[loc.id] = periods
+                } catch {
+                    print("DiningRepository: failed to load periods for loc=\(loc.id):", error)
+                    periodsByLocation[loc.id] = []
+                }
             }
 
             let ymd = Self.format(date)
