@@ -9,8 +9,7 @@ final class DiningRepository: ObservableObject {
 
     func load(date: Date) async {
         do {
-            // Get all meal periods per location
-            try await api.refreshToken()
+            // Get all meal periods per location (token not required; will auto-refresh on 401)
             for loc in FDConfig.locations {
                 do {
                     let periods = try await api.mealPeriods(locationId: loc.id)

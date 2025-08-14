@@ -81,8 +81,7 @@ final class FDClient {
             "accountId": String(FDConfig.accountId)
         ])
 
-        // Call with token. If we do not have one yet, grab it first.
-        if bearer == nil { try await refreshToken() }
+        // This endpoint appears public for Gettysburg; try without a token first.
         do {
             if debugLoggingEnabled { print("FDClient: GET \(req.url?.absoluteString ?? "")") }
             let (data, resp) = try await URLSession.shared.data(for: req)
@@ -186,6 +185,11 @@ final class FDClient {
             // The payload shape can vary. Use a resilient extractor.
             // Strategy: traverse the JSON and pick any array of dictionaries
             // that looks like menu items with a name-like key.
+            // FD meals often returns { result: [ ... ] }
+            if let root = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any],
+               let result = root["result"] {
+                return try decodeItems(from: try JSONSerialization.data(withJSONObject: result))
+            }
             let any = try JSONSerialization.jsonObject(with: data, options: []) as? Any
             var results: [FDMealItem] = []
             func walk(_ node: Any) {
