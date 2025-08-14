@@ -23,12 +23,13 @@ final class DiningRepository: ObservableObject {
             let ymd = Self.format(date)
             let tzMins = TimeZone.current.secondsFromGMT() / 60
 
-            // Fetch menus in parallel
+            // Fetch menus in parallel (slight stagger to avoid connection churn)
             await withTaskGroup(of: (String, [FDMealItem]).self) { group in
                 for loc in FDConfig.locations {
                     guard let periods = periodsByLocation[loc.id], !periods.isEmpty else { continue }
                     for p in periods {
                         group.addTask { [api] in
+                            try? await Task.sleep(nanoseconds: 50_000_000)
                             do {
                                 let items = try await api.meals(locationId: loc.id, mealPeriodId: p.id, from: ymd, to: ymd, timeOffsetMinutes: tzMins)
                                 return ("\(loc.id)-\(p.id)-\(ymd)", items)

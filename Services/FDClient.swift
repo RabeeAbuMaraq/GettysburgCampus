@@ -4,6 +4,13 @@ final class FDClient {
     private var bearer: String?
     private let decoder = JSONDecoder()
     private let debugLoggingEnabled = true
+    private let session: URLSession = {
+        let config = URLSessionConfiguration.default
+        config.waitsForConnectivity = true
+        config.timeoutIntervalForRequest = 30
+        config.timeoutIntervalForResource = 60
+        return URLSession(configuration: config)
+    }()
 
     // MARK: Token
 
@@ -11,7 +18,7 @@ final class FDClient {
     func refreshToken() async throws {
         var req = URLRequest(url: FDConfig.tokenURL)
         req.httpMethod = "GET"
-        let (data, resp) = try await URLSession.shared.data(for: req)
+        let (data, resp) = try await session.data(for: req)
         guard (resp as? HTTPURLResponse)?.statusCode == 200 else {
             throw URLError(.badServerResponse)
         }
@@ -30,8 +37,6 @@ final class FDClient {
         guard let url = comps.url else { throw URLError(.badURL) }
         var req = URLRequest(url: url)
         req.setValue("application/json, text/plain, */*", forHTTPHeaderField: "Accept")
-        req.setValue("https://gettysburg.fdmealplanner.com", forHTTPHeaderField: "Origin")
-        req.setValue("https://gettysburg.fdmealplanner.com/", forHTTPHeaderField: "Referer")
         if let b = bearer { req.setValue("Bearer \(b)", forHTTPHeaderField: "Authorization") }
         return req
     }
@@ -84,7 +89,7 @@ final class FDClient {
         // This endpoint appears public for Gettysburg; try without a token first.
         do {
             if debugLoggingEnabled { print("FDClient: GET \(req.url?.absoluteString ?? "")") }
-            let (data, resp) = try await URLSession.shared.data(for: req)
+            let (data, resp) = try await session.data(for: req)
             if let http = resp as? HTTPURLResponse, http.statusCode == 401 {
                 try await refreshToken()
                 req = try makeRequest(path: path, query: [
@@ -94,7 +99,7 @@ final class FDClient {
                     "accountId": String(FDConfig.accountId)
                 ])
                 if debugLoggingEnabled { print("FDClient: RETRY GET \(req.url?.absoluteString ?? "") after 401") }
-                let (data2, resp2) = try await URLSession.shared.data(for: req)
+                let (data2, resp2) = try await session.data(for: req)
                 guard (resp2 as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
                 return try decodeMealPeriods(from: data2)
             }
@@ -111,13 +116,13 @@ final class FDClient {
             for q in fallbackQueries {
                 req = try makeRequest(path: path, query: q)
                 if debugLoggingEnabled { print("FDClient: FALLBACK GET \(req.url?.absoluteString ?? "")") }
-                let (d, r) = try await URLSession.shared.data(for: req)
+                let (d, r) = try await session.data(for: req)
                 if let h = r as? HTTPURLResponse, h.statusCode == 200 {
                     return try decodeMealPeriods(from: d)
                 } else if let h = r as? HTTPURLResponse, h.statusCode == 401 {
                     try await refreshToken()
                     req = try makeRequest(path: path, query: q)
-                    let (d2, r2) = try await URLSession.shared.data(for: req)
+                    let (d2, r2) = try await session.data(for: req)
                     if (r2 as? HTTPURLResponse)?.statusCode == 200 {
                         return try decodeMealPeriods(from: d2)
                     }
@@ -130,6 +135,7 @@ final class FDClient {
             }
             throw URLError(.badServerResponse)
         } catch {
+            if debugLoggingEnabled { print("FDClient: mealPeriods network error url=\(req.url?.absoluteString ?? "") error=\(error)") }
             throw error
         }
     }
@@ -233,7 +239,7 @@ final class FDClient {
         }
 
         if debugLoggingEnabled { print("FDClient: GET \(req.url?.absoluteString ?? "")") }
-        let (data, resp) = try await URLSession.shared.data(for: req)
+        let (data, resp) = try await session.data(for: req)
         if let http = resp as? HTTPURLResponse, http.statusCode == 401 {
             try await refreshToken()
             // rebuild request to attach fresh Authorization header
@@ -248,7 +254,7 @@ final class FDClient {
                 "timeOffset": String(timeOffsetMinutes)
             ])
             if debugLoggingEnabled { print("FDClient: RETRY GET \(req.url?.absoluteString ?? "") after 401") }
-            let (data2, resp2) = try await URLSession.shared.data(for: req)
+            let (data2, resp2) = try await session.data(for: req)
             guard (resp2 as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
             return try decodeItems(from: data2)
         }
