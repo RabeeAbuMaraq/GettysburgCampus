@@ -21,7 +21,7 @@ final class NewsService: ObservableObject {
 		errorMessage = nil
 
 		URLSession.shared.dataTaskPublisher(for: rssURL)
-			.map(\.$data)
+			.map { $0.data }
 			.tryMap { data in try Self.parseRSS(data: data) }
 			.receive(on: DispatchQueue.main)
 			.sink(receiveCompletion: { [weak self] completion in
@@ -75,14 +75,16 @@ final class NewsService: ObservableObject {
 			let content = String(part[..<end])
 			var dict: [String: String] = [:]
 			dict["title"] = match(content, pattern: "<title>[\\s\\S]*?</title>")
-				?.replacingOccurrences(of: "<title>", with: "").replacingOccurrences(of: "</title>", with: "")
+				.map { $0.replacingOccurrences(of: "<title>", with: "").replacingOccurrences(of: "</title>", with: "") }
 			dict["link"] = match(content, pattern: "<link>[\\s\\S]*?</link>")
-				?.replacingOccurrences(of: "<link>", with: "").replacingOccurrences(of: "</link>", with: "")
+				.map { $0.replacingOccurrences(of: "<link>", with: "").replacingOccurrences(of: "</link>", with: "") }
 			dict["pubDate"] = match(content, pattern: "<pubDate>[\\s\\S]*?</pubDate>")
-				?.replacingOccurrences(of: "<pubDate>", with: "").replacingOccurrences(of: "</pubDate>", with: "")
+				.map { $0.replacingOccurrences(of: "<pubDate>", with: "").replacingOccurrences(of: "</pubDate>", with: "") }
 			dict["description"] = match(content, pattern: "<description[\\s\\S]*?>[\\s\\S]*?</description>")
-				?.replacingOccurrences(of: "<description[\\s\\S]*?>", with: "", options: .regularExpression)
-				.replacingOccurrences(of: "</description>", with: "")
+				.map {
+					$0.replacingOccurrences(of: "<description[\\s\\S]*?>", with: "", options: .regularExpression)
+						.replacingOccurrences(of: "</description>", with: "")
+				}
 			if !dict.isEmpty { out.append(dict) }
 		}
 		return out
@@ -131,5 +133,3 @@ final class NewsService: ObservableObject {
 		return .general
 	}
 }
-
-
