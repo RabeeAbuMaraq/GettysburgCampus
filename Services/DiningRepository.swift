@@ -4,8 +4,10 @@ import Combine
 @MainActor
 final class DiningRepository: ObservableObject {
     private let api = FDClient()
+
     @Published var periodsByLocation: [Int: [FDMealPeriod]] = [:]
     @Published var itemsByKey: [String: [FDMealItem]] = [:] // key = "\(locId)-\(periodId)-\(date)"
+
     private var lastLoadedDayKey: String?
     private var isLoading = false
 
@@ -19,56 +21,52 @@ final class DiningRepository: ObservableObject {
         }
         lastLoadedDayKey = ymd
 
-        do {
-            // Get all meal periods per location (token not required; will auto-refresh on 401)
-            for loc in FDConfig.locations {
-                do {
-                    let periods = try await api.mealPeriods(locationId: loc.id)
-                    periodsByLocation[loc.id] = periods
-                } catch {
-                    print("DiningRepository: failed to load periods for loc=\(loc.id):", error)
-                    periodsByLocation[loc.id] = []
-                }
+        // Get all meal periods per location (token not required; will auto-refresh on 401)
+        for loc in FDConfig.locations {
+            do {
+                let periods = try await api.mealPeriods(locationId: loc.id)
+                periodsByLocation[loc.id] = periods
+            } catch {
+                print("DiningRepository: failed to load periods for loc=\(loc.id):", error)
+                periodsByLocation[loc.id] = []
             }
+        }
 
-            let tzMins = TimeZone.current.secondsFromGMT() / 60
-            // Build a monthly range around the selected date (matches web usage)
-            let cal = Calendar.current
-            let comps = cal.dateComponents([.year, .month], from: date)
-            let startOfMonth = cal.date(from: comps) ?? date
-            let endOfMonth = cal.date(byAdding: DateComponents(month: 1, day: -1), to: startOfMonth) ?? date
-            let rangeFrom = Self.format(startOfMonth)
-            let rangeTo = Self.format(endOfMonth)
+        let tzMins = TimeZone.current.secondsFromGMT() / 60
+        // Build a monthly range around the selected date (matches web usage)
+        let cal = Calendar.current
+        let comps = cal.dateComponents([.year, .month], from: date)
+        let startOfMonth = cal.date(from: comps) ?? date
+        let endOfMonth = cal.date(byAdding: DateComponents(month: 1, day: -1), to: startOfMonth) ?? date
+        let rangeFrom = Self.format(startOfMonth)
+        let rangeTo = Self.format(endOfMonth)
 
-            // Fetch menus in parallel (slight stagger to avoid connection churn)
-            await withTaskGroup(of: (String, [FDMealItem]).self) { group in
-                for loc in FDConfig.locations {
-                    guard let periods = periodsByLocation[loc.id], !periods.isEmpty else { continue }
-                    for p in periods {
-                        group.addTask { [api] in
-                            try? await Task.sleep(nanoseconds: 50_000_000)
-                            do {
-                                let items = try await api.meals(
-                                    locationId: loc.id,
-                                    mealPeriodId: p.id,
-                                    selectedYMD: ymd,
-                                    rangeFromYMD: rangeFrom,
-                                    rangeToYMD: rangeTo,
-                                    timeOffsetMinutes: tzMins
-                                )
-                                return ("\(loc.id)-\(p.id)-\(ymd)", items)
-                            } catch {
-                                return ("\(loc.id)-\(p.id)-\(ymd)", [])
-                            }
+        // Fetch menus in parallel (slight stagger to avoid connection churn)
+        await withTaskGroup(of: (String, [FDMealItem]).self) { group in
+            for loc in FDConfig.locations {
+                guard let periods = periodsByLocation[loc.id], !periods.isEmpty else { continue }
+                for p in periods {
+                    group.addTask { [api] in
+                        try? await Task.sleep(nanoseconds: 50_000_000)
+                        do {
+                            let items = try await api.meals(
+                                locationId: loc.id,
+                                mealPeriodId: p.id,
+                                selectedYMD: ymd,
+                                rangeFromYMD: rangeFrom,
+                                rangeToYMD: rangeTo,
+                                timeOffsetMinutes: tzMins
+                            )
+                            return ("\(loc.id)-\(p.id)-\(ymd)", items)
+                        } catch {
+                            return ("\(loc.id)-\(p.id)-\(ymd)", [])
                         }
                     }
                 }
-                for await (key, items) in group {
-                    itemsByKey[key] = items
-                }
             }
-        } catch {
-            print("DiningRepository error:", error)
+            for await (key, items) in group {
+                itemsByKey[key] = items
+            }
         }
     }
 
@@ -78,5 +76,3 @@ final class DiningRepository: ObservableObject {
         return f.string(from: d)
     }
 }
-
-

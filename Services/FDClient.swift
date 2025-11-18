@@ -225,7 +225,7 @@ final class FDClient {
                 }
                 return collected
             }
-            let any = try JSONSerialization.jsonObject(with: data, options: []) as? Any
+            let any = try JSONSerialization.jsonObject(with: data, options: [])
             var results: [FDMealItem] = []
             func walk(_ node: Any) {
                 if let arr = node as? [[String: Any]] {
@@ -281,7 +281,7 @@ final class FDClient {
         if let http = resp as? HTTPURLResponse, http.statusCode == 401 {
             try await refreshToken()
             // rebuild request to attach fresh Authorization header
-            var retryQuery = query
+            let retryQuery = query
             req = try makeRequest(path: path, query: retryQuery)
             if debugLoggingEnabled { print("FDClient: RETRY GET \(req.url?.absoluteString ?? "") after 401") }
             let (data2, resp2) = try await session.data(for: req)
