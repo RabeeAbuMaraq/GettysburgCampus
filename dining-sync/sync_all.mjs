@@ -25,11 +25,20 @@ const IMAGE_BASE = "https://gettysburglive.culinarysuite.com";
 const TENANT_ID = "19";
 const TIME_OFFSET_MINUTES = "300"; // EST offset
 
+// === SYNC WINDOW CONFIG ===
+// Override with environment variables if needed
+const START_DATE = process.env.START_DATE; // Format: YYYY-MM-DD
+const DAYS_AHEAD = parseInt(process.env.DAYS_AHEAD || "7", 10); // Default: 7 days for weekly runs
+const CLEAR_EXISTING = process.env.CLEAR_EXISTING !== "false"; // Default to true
+
 // ============================================================================
 // FILTERING RULES
 // ============================================================================
 
 // === Bullet Hole: Always-available items to EXCLUDE ===
+// These are bar items that are available every day and should not appear
+// as daily specials. This includes pasta bar, salad bar, deli bar, toppings,
+// condiments, and standard sides that never change.
 const BULLET_ALWAYS_AVAILABLE = new Set([
   // Pasta varieties (always available at pasta bar)
   "Penne Pasta",
@@ -180,6 +189,8 @@ const BULLET_ALWAYS_AVAILABLE = new Set([
 ]);
 
 // === Servo: Always-available grill items to EXCLUDE ===
+// Similar to Bullet Hole, these are items always available at the grill,
+// pasta bar, or as standard sides. We only want to show true daily specials.
 const SERVO_ALWAYS_AVAILABLE = new Set([
   // Grill burgers/sandwiches (always available)
   "Grilled Hamburger",
@@ -199,7 +210,7 @@ const SERVO_ALWAYS_AVAILABLE = new Set([
   "Grilled Poultry Seasoned Chicken Breast",
   "Grilled Just Plain Good Seasoned Chicken Breast",
   "Grilled Lime Pepper Chicken Breast",
-  "Grilled Mediterranea n Chicken Breast",
+  "Grilled Mediterranean Chicken Breast",
   "Grilled Chipotle Cinnamon Chicken Breast",
   "Grilled Citrus and Herb Chicken Breast",
 
@@ -238,6 +249,7 @@ const MEAL_CONFIGS = [
     locationId: "4",
     mealPeriodId: "4",
     mealPeriodLabel: "Lunch",
+    locationName: "Servo",
     exclusionList: SERVO_ALWAYS_AVAILABLE,
   },
   {
@@ -246,6 +258,7 @@ const MEAL_CONFIGS = [
     locationId: "4",
     mealPeriodId: "5",
     mealPeriodLabel: "Dinner",
+    locationName: "Servo",
     exclusionList: SERVO_ALWAYS_AVAILABLE,
   },
   {
@@ -254,6 +267,7 @@ const MEAL_CONFIGS = [
     locationId: "1",
     mealPeriodId: "4",
     mealPeriodLabel: "Lunch",
+    locationName: "Bullet Hole",
     exclusionList: BULLET_ALWAYS_AVAILABLE,
   },
   {
@@ -262,6 +276,7 @@ const MEAL_CONFIGS = [
     locationId: "1",
     mealPeriodId: "5",
     mealPeriodLabel: "Dinner",
+    locationName: "Bullet Hole",
     exclusionList: BULLET_ALWAYS_AVAILABLE,
   },
 ];
@@ -271,12 +286,19 @@ const MEAL_CONFIGS = [
 // ============================================================================
 
 /**
- * Build full image URL from relative path
+ * Build full image URL from relative path with proper encoding
  */
 function buildImageUrl(relativePath) {
   if (!relativePath) return null;
   if (relativePath.startsWith("http")) return relativePath;
-  return `${IMAGE_BASE}${relativePath}`;
+  
+  // Encode special characters but preserve slashes
+  const encoded = relativePath
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+  
+  return `${IMAGE_BASE}${encoded}`;
 }
 
 /**
@@ -305,15 +327,6 @@ function extractDietaryTags(recipe) {
 }
 
 /**
- * Extract clean location name from account name
- */
-function extractLocation(accountName) {
-  if (!accountName) return "Unknown";
-  const parts = accountName.split("-");
-  return (parts[1] || parts[0]).trim();
-}
-
-/**
  * Format JavaScript Date to FD API format (YYYY/MM/DD)
  */
 function formatFDDate(d) {
@@ -321,6 +334,23 @@ function formatFDDate(d) {
   const month = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${year}/${month}/${day}`;
+}
+
+/**
+ * Format JavaScript Date to database format (YYYY-MM-DD)
+ */
+function formatDBDate(d) {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * Convert FD date string (YYYY/MM/DD) to database format (YYYY-MM-DD)
+ */
+function convertFDDateToDB(fdDate) {
+  return fdDate.replace(/\//g, "-");
 }
 
 /**
@@ -344,6 +374,34 @@ function deduplicateRows(rows) {
   }
 
   return Array.from(seen.values());
+}
+
+// ============================================================================
+// DATE RANGE CALCULATION
+// ============================================================================
+
+/**
+ * Calculate the date range for syncing
+ */
+function calculateDateRange() {
+  let startDate;
+  
+  if (START_DATE) {
+    // Parse START_DATE from YYYY-MM-DD format
+    const [year, month, day] = START_DATE.split("-").map(Number);
+    startDate = new Date(year, month - 1, day);
+    console.log(`📅 Using START_DATE from environment: ${START_DATE}`);
+  } else {
+    startDate = new Date();
+    console.log(`📅 Using today as start date: ${formatDBDate(startDate)}`);
+  }
+
+  const endDate = new Date(startDate);
+  endDate.setDate(endDate.getDate() + DAYS_AHEAD - 1);
+
+  console.log(`📅 Date range: ${formatDBDate(startDate)} → ${formatDBDate(endDate)} (${DAYS_AHEAD} days)`);
+
+  return { startDate, endDate };
 }
 
 // ============================================================================
@@ -397,21 +455,30 @@ async function fetchFDRange(config, startDate, endDate) {
  * Process and filter menu items according to our rules
  */
 function processMenuItems(config, dayData) {
-  const served_on = dayData.strMenuForDate;
-  const accountName = dayData.accountName;
-  const location = extractLocation(accountName);
+  const served_on = convertFDDateToDB(dayData.strMenuForDate);
+  const location = config.locationName;
   const meal_period = config.mealPeriodLabel;
 
-  const allRecipes = dayData.allMenuRecipes || [];
+  // Handle both possible field names for recipes array
+  const allRecipes = dayData.allMenuRecipes || dayData.menuRecipiesData || [];
 
   // STEP 1: Filter to Entrees only
-  const entrees = allRecipes.filter((r) => r.category === "Entree");
+  // Note: category may have leading/trailing spaces
+  const entrees = allRecipes.filter((r) => {
+    const category = (r.category || "").trim();
+    return category === "Entree" || category === " Entree";
+  });
 
   // STEP 2: Apply exclusion list
   let filtered = entrees;
   if (config.exclusionList) {
     filtered = entrees.filter((r) => {
-      const name = (r.englishAlternateName || r.componentName || "").trim();
+      const name = (
+        r.componentEnglishName ||
+        r.englishAlternateName ||
+        r.componentName ||
+        ""
+      ).trim();
       if (!name) return false;
 
       // Exclude always-available items
@@ -424,7 +491,7 @@ function processMenuItems(config, dayData) {
   }
 
   // STEP 3: Require valid image URL
-  const withImages = filtered.filter((r) => !!r.recipeImage);
+  const withImages = filtered.filter((r) => !!r.recipeImagePath || !!r.recipeImage);
 
   // Log filtering stats
   console.log(
@@ -434,14 +501,23 @@ function processMenuItems(config, dayData) {
   );
 
   // STEP 4: Map to our database schema
-  const rows = withImages.map((r) => ({
-    served_on,
-    location,
-    meal_period,
-    item_name: r.englishAlternateName || r.componentName,
-    image_url: buildImageUrl(r.recipeImage),
-    dietary_tags: extractDietaryTags(r),
-  }));
+  const rows = withImages.map((r) => {
+    const itemName =
+      r.componentEnglishName ||
+      r.englishAlternateName ||
+      r.componentName ||
+      "Unknown";
+    const imagePath = r.recipeImagePath || r.recipeImage || "";
+
+    return {
+      served_on,
+      location,
+      meal_period,
+      item_name: itemName.trim(),
+      image_url: buildImageUrl(imagePath),
+      dietary_tags: extractDietaryTags(r),
+    };
+  });
 
   return rows;
 }
@@ -490,15 +566,18 @@ async function syncMealPeriod(config, startDate, endDate) {
       return { success: true, inserted: 0 };
     }
 
-    // Insert into Supabase (will skip duplicates due to unique constraint)
+    // Insert into Supabase with upsert to handle duplicates
     console.log(
       `[${config.name}] 💾 Inserting ${dedupedRows.length} rows into Supabase...`
     );
 
     const { data, error } = await supabase
-  .from("dining_menu_items")
-  .insert(dedupedRows)
-  .select();
+      .from("dining_menu_items")
+      .upsert(dedupedRows, {
+        onConflict: "served_on,location,meal_period,item_name",
+        ignoreDuplicates: true,
+      })
+      .select();
 
     if (error) {
       console.error(`[${config.name}] ❌ Supabase error:`, error.message);
@@ -523,8 +602,8 @@ async function syncMealPeriod(config, startDate, endDate) {
  * Delete existing data for the date range to avoid duplicates on re-sync
  */
 async function clearExistingData(startDate, endDate) {
-  const startStr = formatFDDate(startDate).replace(/\//g, "-");
-  const endStr = formatFDDate(endDate).replace(/\//g, "-");
+  const startStr = formatDBDate(startDate);
+  const endStr = formatDBDate(endDate);
 
   console.log(`\n${"=".repeat(70)}`);
   console.log(`🗑️  CLEANING UP EXISTING DATA`);
@@ -560,27 +639,27 @@ async function clearExistingData(startDate, endDate) {
 
 async function main() {
   console.log("\n" + "=".repeat(70));
-  console.log("🚀 GETTYSBURG DINING MENU SYNC - FINAL VERSION");
+  console.log("🚀 GETTYSBURG DINING MENU SYNC - PRODUCTION VERSION");
   console.log("=".repeat(70));
 
- // Date range: today through 6 days from now (7-day weekly window)
-const today = new Date();
-const endDate = new Date(today);
-endDate.setDate(endDate.getDate() + 6);
+  // Calculate date range
+  const { startDate, endDate } = calculateDateRange();
 
-console.log(`📅 Syncing next 7 days: ${formatFDDate(today)} → ${formatFDDate(endDate)}`);
-
-  // Step 1: Clear existing data for this range
-  const clearResult = await clearExistingData(today, endDate);
-  if (!clearResult.success) {
-    console.error("❌ Failed to clear existing data. Aborting.");
-    process.exit(1);
+  // Step 1: Clear existing data for this range (if enabled)
+  if (CLEAR_EXISTING) {
+    const clearResult = await clearExistingData(startDate, endDate);
+    if (!clearResult.success) {
+      console.error("❌ Failed to clear existing data. Aborting.");
+      process.exit(1);
+    }
+  } else {
+    console.log("\n⏩ Skipping cleanup (CLEAR_EXISTING=false)");
   }
 
   // Step 2: Sync all meal periods
   const results = [];
   for (const config of MEAL_CONFIGS) {
-    const result = await syncMealPeriod(config, today, endDate);
+    const result = await syncMealPeriod(config, startDate, endDate);
     results.push({ name: config.name, ...result });
   }
 
