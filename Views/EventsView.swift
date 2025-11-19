@@ -1,12 +1,16 @@
 import SwiftUI
 
 struct EventsView: View {
-    @StateObject private var eventsService = EventsService.shared
+    @EnvironmentObject var appState: AppState
     @State private var selectedEvent: CampusEvent?
     @State private var showingEventDetail = false
     @State private var selectedFilter: EventFilter = .all
     @State private var isRefreshing = false
     @State private var animateCards = false
+    
+    private var eventsService: EventsService {
+        appState.eventsService
+    }
     
     var body: some View {
         NavigationView {
@@ -59,6 +63,11 @@ struct EventsView: View {
                                 }
                             }
                         )
+                        
+                        // Error message (if any) - shows with mock events
+                        if let errorMessage = eventsService.errorMessage {
+                            ErrorStateView(errorMessage: errorMessage, filter: selectedFilter)
+                        }
                         
                         // Events Content
                         EventsContentSection(
@@ -300,7 +309,7 @@ struct EventsContentSection: View {
         Group {
             if eventsService.isLoading {
                 LoadingView()
-            } else if filteredEvents.isEmpty {
+            } else if filteredEvents.isEmpty && eventsService.errorMessage == nil {
                 EmptyStateView(filter: selectedFilter)
             } else {
                 EventsListView(
@@ -344,6 +353,39 @@ struct LoadingView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.top, 100)
+    }
+}
+
+// MARK: - Error State View
+struct ErrorStateView: View {
+    let errorMessage: String
+    let filter: EventFilter
+    
+    var body: some View {
+        VStack(spacing: 24) {
+            Image(systemName: "exclamationmark.triangle")
+                .font(.system(size: 60))
+                .foregroundColor(Color(hex: "#f59e0b"))
+            
+            Text("Notice")
+                .font(.system(size: 24, weight: .bold))
+                .foregroundColor(Color(hex: "#1f2937"))
+            
+            Text(errorMessage)
+                .font(.system(size: 16, weight: .medium))
+                .foregroundColor(Color(hex: "#6b7280"))
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 40)
+            
+            Text("Some sample events are shown below.")
+                .font(.system(size: 14, weight: .regular))
+                .foregroundColor(Color(hex: "#9ca3af"))
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 40)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 60)
+        .padding(.bottom, 40)
     }
 }
 

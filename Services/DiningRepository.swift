@@ -27,7 +27,14 @@ final class DiningRepository: ObservableObject {
                 let periods = try await api.mealPeriods(locationId: loc.id)
                 periodsByLocation[loc.id] = periods
             } catch {
-                print("DiningRepository: failed to load periods for loc=\(loc.id):", error)
+                // Handle specific error codes more gracefully
+                let nsError = error as NSError
+                if nsError.domain == NSURLErrorDomain && nsError.code == -1017 {
+                    // -1017 typically means the endpoint doesn't exist or is unavailable
+                    print("DiningRepository: Location \(loc.id) appears to be unavailable (might be closed or inactive)")
+                } else {
+                    print("DiningRepository: Failed to load periods for location \(loc.id): \(error.localizedDescription)")
+                }
                 periodsByLocation[loc.id] = []
             }
         }

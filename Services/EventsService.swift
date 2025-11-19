@@ -1,6 +1,12 @@
 import Foundation
 import Combine
 
+// MARK: - Custom Errors
+enum EventsError: Error {
+    case notFound
+    case invalidResponse
+}
+
 // MARK: - JSON Response Models
 struct EventsResponse: Codable {
     let events: [EventJSON]
@@ -34,6 +40,9 @@ class EventsService: ObservableObject {
     
     private let jsonURL = "https://gburgcampus.app/events.json"
     private var cancellables = Set<AnyCancellable>()
+    private var retryCount = 0
+    private let maxRetries = 2
+    private var retryTimer: AnyCancellable?
     
     init() {
         loadEvents()
@@ -51,7 +60,38 @@ class EventsService: ObservableObject {
         }
         
         URLSession.shared.dataTaskPublisher(for: url)
-            .map(\.data)
+            .tryMap { data, response -> Data in
+                // Check for HTTP errors
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    throw URLError(.badServerResponse)
+                }
+                
+                // Handle 404 and other HTTP errors
+                if httpResponse.statusCode == 404 {
+                    print("⚠️ Events API endpoint not found (404). Using fallback.")
+                    throw EventsError.notFound
+                }
+                
+                if httpResponse.statusCode != 200 {
+                    print("⚠️ Events API returned status code: \(httpResponse.statusCode)")
+                    throw URLError(.badServerResponse)
+                }
+                
+                // Check if we received HTML instead of JSON
+                if let contentType = httpResponse.allHeaderFields["Content-Type"] as? String,
+                   contentType.contains("text/html") {
+                    print("⚠️ Events API returned HTML instead of JSON")
+                    throw EventsError.invalidResponse
+                }
+                
+                // Check if the data starts with '<' (HTML)
+                if let firstChar = data.first, firstChar == 60 { // ASCII '<'
+                    print("⚠️ Received HTML instead of JSON from events API")
+                    throw EventsError.invalidResponse
+                }
+                
+                return data
+            }
             .decode(type: EventsResponse.self, decoder: JSONDecoder())
             .receive(on: DispatchQueue.main)
             .sink(
@@ -59,7 +99,43 @@ class EventsService: ObservableObject {
                     self.isLoading = false
                     if case .failure(let error) = completion {
                         print("❌ Error loading events: \(error)")
-                        self.errorMessage = "Failed to load events: \(error.localizedDescription)"
+                        
+                        // Retry logic for transient errors
+                        if self.retryCount < self.maxRetries,
+                           !(error is EventsError) { // Don't retry for known errors (404, HTML response)
+                            self.retryCount += 1
+                            let delay = Double(self.retryCount) * 2.0 // Exponential backoff
+                            print("🔄 Retrying in \(delay) seconds (attempt \(self.retryCount + 1)/\(self.maxRetries + 1))")
+                            
+                            self.retryTimer = Timer.publish(every: delay, on: .main, in: .common)
+                                .autoconnect()
+                                .first()
+                                .sink { _ in
+                                    self.loadEvents()
+                                }
+                            return
+                        }
+                        
+                        // Reset retry count for next manual refresh
+                        self.retryCount = 0
+                        
+                        // Provide user-friendly error messages
+                        if let eventsError = error as? EventsError {
+                            switch eventsError {
+                            case .notFound:
+                                self.errorMessage = "Events feed is currently unavailable"
+                                self.loadMockEvents() // Load fallback data
+                            case .invalidResponse:
+                                self.errorMessage = "Events feed is temporarily offline"
+                                self.loadMockEvents() // Load fallback data
+                            }
+                        } else {
+                            self.errorMessage = "Unable to load events. Please try again later."
+                            self.loadMockEvents() // Load fallback data
+                        }
+                    } else {
+                        // Success - reset retry count
+                        self.retryCount = 0
                     }
                 },
                 receiveValue: { response in
@@ -131,6 +207,52 @@ class EventsService: ObservableObject {
     }
     
     func refreshEvents() {
+        retryCount = 0 // Reset retry count on manual refresh
+        retryTimer?.cancel() // Cancel any pending retry
         loadEvents()
+    }
+    
+    // MARK: - Fallback Mock Data
+    private func loadMockEvents() {
+        print("📦 Loading mock/fallback events")
+        
+        // Create some sample upcoming events as fallback
+        let calendar = Calendar.current
+        let now = Date()
+        
+        // Sample events for the next few days
+        let mockEventsData: [(title: String, daysOffset: Int, duration: TimeInterval, location: String, description: String)] = [
+            ("Campus Tour", 1, 2 * 3600, "Admissions Office", "Join us for a guided tour of the Gettysburg College campus."),
+            ("Coffee & Conversation", 2, 1.5 * 3600, "Servo", "Informal gathering for students and faculty."),
+            ("Study Session", 3, 3 * 3600, "Musselman Library", "Group study session for finals preparation."),
+            ("Guest Lecture", 5, 1 * 3600, "Science Center", "Special guest speaker on environmental science."),
+            ("Community Service Day", 7, 4 * 3600, "Campus Center", "Volunteer opportunities in the local community.")
+        ]
+        
+        var mockEvents: [CampusEvent] = []
+        
+        for (title, daysOffset, duration, location, description) in mockEventsData {
+            if let startDate = calendar.date(byAdding: .day, value: daysOffset, to: now),
+               let endDate = calendar.date(byAdding: .second, value: Int(duration), to: startDate) {
+                let event = CampusEvent(
+                    id: "mock_\(title.replacingOccurrences(of: " ", with: "_"))_\(daysOffset)",
+                    title: title,
+                    description: description,
+                    start: startDate,
+                    end: endDate,
+                    location: location,
+                    url: "https://www.gettysburg.edu",
+                    organizer: nil,
+                    category: "General",
+                    eventType: "Campus Event"
+                )
+                mockEvents.append(event)
+            }
+        }
+        
+        self.events = mockEvents.sorted { $0.start < $1.start }
+        self.lastUpdated = Date()
+        
+        print("✅ Loaded \(mockEvents.count) mock events as fallback")
     }
 } 

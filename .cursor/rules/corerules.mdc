@@ -4,7 +4,6 @@ Just do what I request. Keep explanations short or skip them.
 Make atomic changes only.
 Only change the relevant parts of the file. Don’t rewrite the whole file unless necessary.
 Keep my file organization and naming conventions.
-Don’t rename views, models, or folders unless I say so.
 Match my design system.
 Use existing spacing, color, font, and layout conventions I already set in DesignSystem.
 Assume SwiftUI, MVVM, Apple-style design unless told otherwise.

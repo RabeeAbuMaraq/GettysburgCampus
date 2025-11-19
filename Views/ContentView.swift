@@ -1,47 +1,46 @@
 import SwiftUI
 
 struct ContentView: View {
-    @State private var selectedTab = 0
-    @State private var isAuthenticated = false
+    @EnvironmentObject var appState: AppState
     
     var body: some View {
         Group {
-            if isAuthenticated {
-                TabView(selection: $selectedTab) {
+            if appState.userManager.isAuthenticated {
+                TabView(selection: $appState.selectedTab) {
                     HomeView()
                         .tabItem {
-                            Image(systemName: "house.fill")
-                            Text("Home")
+                            Image(systemName: AppTab.home.icon)
+                            Text(AppTab.home.title)
                         }
-                        .tag(0)
+                        .tag(AppTab.home.rawValue)
                     
                     EventsView()
                         .tabItem {
-                            Image(systemName: "calendar")
-                            Text("Events")
+                            Image(systemName: AppTab.events.icon)
+                            Text(AppTab.events.title)
                         }
-                        .tag(1)
+                        .tag(AppTab.events.rawValue)
                     
                     DiningView()
                         .tabItem {
-                            Image(systemName: "fork.knife")
-                            Text("Dining")
+                            Image(systemName: AppTab.dining.icon)
+                            Text(AppTab.dining.title)
                         }
-                        .tag(2)
+                        .tag(AppTab.dining.rawValue)
                     
                     CampusMapView()
                         .tabItem {
-                            Image(systemName: "map.fill")
-                            Text("Map")
+                            Image(systemName: AppTab.map.icon)
+                            Text(AppTab.map.title)
                         }
-                        .tag(3)
+                        .tag(AppTab.map.rawValue)
                     
                     MoreView()
                         .tabItem {
-                            Image(systemName: "ellipsis")
-                            Text("More")
+                            Image(systemName: AppTab.more.icon)
+                            Text(AppTab.more.title)
                         }
-                        .tag(4)
+                        .tag(AppTab.more.rawValue)
                 }
                 .accentColor(DesignSystem.Colors.orange)
                 .onAppear {
@@ -56,10 +55,6 @@ struct ContentView: View {
             } else {
                 LoginView()
             }
-        }
-        .onAppear {
-            // For now, skip authentication for development
-            isAuthenticated = true
         }
     }
 }

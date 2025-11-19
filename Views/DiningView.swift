@@ -1,8 +1,12 @@
 import SwiftUI
 
 struct DiningView: View {
-    @StateObject private var repo = DiningRepository()
+    @EnvironmentObject var appState: AppState
     @State private var date = Date()
+    
+    private var repo: DiningRepository {
+        appState.diningRepository
+    }
 
     var body: some View {
         NavigationStack {
@@ -24,6 +28,11 @@ struct DiningView: View {
                                     )
                                 }
                             }
+                        } else if repo.periodsByLocation[loc.id] != nil {
+                            // Empty array means location is unavailable
+                            Text("Location temporarily unavailable")
+                                .foregroundStyle(.secondary)
+                                .font(.footnote)
                         } else {
                             Text("Loading meal periods...")
                                 .foregroundStyle(.secondary)

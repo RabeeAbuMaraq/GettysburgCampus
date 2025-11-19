@@ -1,7 +1,9 @@
 import SwiftUI
 
 struct MoreView: View {
+    @EnvironmentObject var appState: AppState
     @State private var animateContent = false
+    @State private var showingSignOutAlert = false
     
     var body: some View {
         NavigationView {
@@ -23,12 +25,23 @@ struct MoreView: View {
                         
                         // About & Legal
                         AboutLegalSection()
+                        
+                        // Sign Out
+                        SignOutSection(showingSignOutAlert: $showingSignOutAlert)
                     }
                     .padding(.horizontal, DesignSystem.Spacing.lg)
                     .padding(.bottom, 100)
                 }
             }
             .navigationBarHidden(true)
+        }
+        .alert("Sign Out", isPresented: $showingSignOutAlert) {
+            Button("Cancel", role: .cancel) { }
+            Button("Sign Out", role: .destructive) {
+                appState.userManager.signOut()
+            }
+        } message: {
+            Text("Are you sure you want to sign out?")
         }
         .onAppear {
             withAnimation(DesignSystem.Animations.springSlow.delay(0.2)) {
@@ -417,4 +430,45 @@ struct AboutItem {
 
 enum AboutType {
     case about, privacy, terms, accessibility
+}
+
+// MARK: - Sign Out Section
+struct SignOutSection: View {
+    @Binding var showingSignOutAlert: Bool
+    @State private var animateSignOut = false
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+            Button(action: {
+                showingSignOutAlert = true
+            }) {
+                HStack(spacing: DesignSystem.Spacing.md) {
+                    Image(systemName: "rectangle.portrait.and.arrow.right")
+                        .font(.system(size: 20, weight: .medium))
+                        .foregroundColor(.white)
+                        .frame(width: 40, height: 40)
+                        .background(
+                            Circle()
+                                .fill(DesignSystem.Colors.error)
+                        )
+                    
+                    Text("Sign Out")
+                        .font(DesignSystem.Typography.headline)
+                        .foregroundColor(DesignSystem.Colors.error)
+                    
+                    Spacer()
+                }
+                .padding(DesignSystem.Spacing.lg)
+                .glassCard()
+            }
+            .buttonStyle(PlainButtonStyle())
+            .opacity(animateSignOut ? 1 : 0)
+            .offset(y: animateSignOut ? 0 : 20)
+        }
+        .onAppear {
+            withAnimation(DesignSystem.Animations.spring.delay(0.7)) {
+                animateSignOut = true
+            }
+        }
+    }
 }

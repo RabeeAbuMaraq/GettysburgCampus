@@ -121,7 +121,17 @@ final class FDClient {
             }
             throw URLError(.badServerResponse)
         } catch {
-            if debugLoggingEnabled { print("FDClient: mealPeriods network error url=\(req.url?.absoluteString ?? "") error=\(error)") }
+            // Provide more context for common errors
+            let nsError = error as NSError
+            if debugLoggingEnabled {
+                if nsError.domain == NSURLErrorDomain && nsError.code == -1017 {
+                    print("FDClient: mealPeriods - Location appears unavailable (possibly closed/inactive) url=\(req.url?.absoluteString ?? "")")
+                } else if nsError.domain == NSURLErrorDomain && nsError.code == -999 {
+                    print("FDClient: mealPeriods - Request cancelled url=\(req.url?.absoluteString ?? "")")
+                } else {
+                    print("FDClient: mealPeriods network error url=\(req.url?.absoluteString ?? "") error=\(error)")
+                }
+            }
             throw error
         }
     }

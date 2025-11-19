@@ -13,8 +13,9 @@ enum FDConfig {
     static let accountId = 4
     static let tenantId = 19
 
-    // Location ids confirmed by the user’s captures
-    // 1 = Bullet Hole, 2 = Commons, 4 = Servo
+    // Location ids confirmed by the user's captures
+    // 1 = Bullet Hole, 2 = Commons (may be inactive), 4 = Servo
+    // Note: Location 2 (Commons) appears to be unavailable/inactive based on API responses
     static let locations: [FDLocation] = [
         .init(id: 1, name: "Gettysburg - Bullet Hole"),
         .init(id: 2, name: "Gettysburg - Commons"),

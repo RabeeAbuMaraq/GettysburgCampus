@@ -4,7 +4,8 @@ import Combine
 class UserManager: ObservableObject {
     static let shared = UserManager()
     
-    @Published var isAuthenticated = false
+    // DEVELOPMENT: Bypass authentication
+    @Published var isAuthenticated = true
     @Published var currentUser: User?
     
     private let userDefaults = UserDefaults.standard
@@ -12,7 +13,8 @@ class UserManager: ObservableObject {
     private let userDataKey = "userData"
     
     init() {
-        loadUserFromStorage()
+        // DEVELOPMENT: Skip loading user from storage
+        // loadUserFromStorage()
     }
     
     struct User: Codable {

@@ -3,7 +3,7 @@
 import SwiftUI
 
 struct HomeView: View {
-    @StateObject private var eventsService = EventsService.shared
+    @EnvironmentObject var appState: AppState
     @State private var animateContent = false
     
     var body: some View {
@@ -22,7 +22,7 @@ struct HomeView: View {
                         HomeQuickActionsSection()
                         
                         // Today's Events Preview
-                        if !eventsService.events.isEmpty {
+                        if !appState.eventsService.events.isEmpty {
                             TodayEventsSection()
                         }
                         
@@ -175,10 +175,24 @@ struct HomeQuickActionsSection: View {
 struct HomeQuickActionCard: View {
     let action: QuickAction
     @State private var isPressed = false
+    @EnvironmentObject var appState: AppState
     
     var body: some View {
         Button(action: {
             // Navigate to destination
+            switch action.destination {
+            case .dining:
+                appState.switchToTab(.dining)
+            case .events:
+                appState.switchToTab(.events)
+            case .map:
+                appState.switchToTab(.map)
+            case .calendar:
+                appState.switchToTab(.events)
+            case .shuttle:
+                // TODO: Implement shuttle feature
+                break
+            }
         }) {
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
                 HStack {
@@ -214,7 +228,7 @@ struct HomeQuickActionCard: View {
 
 // MARK: - Today's Events Section
 struct TodayEventsSection: View {
-    @StateObject private var eventsService = EventsService.shared
+    @EnvironmentObject var appState: AppState
     @State private var animateEvents = false
     
     // New state variables for selected event and showing detail modal
@@ -222,7 +236,7 @@ struct TodayEventsSection: View {
     @State private var showingEventDetail = false
     
     var todayEvents: [CampusEvent] {
-        eventsService.events.filter { Calendar.current.isDateInToday($0.start) }
+        appState.eventsService.events.filter { Calendar.current.isDateInToday($0.start) }
     }
     
     var body: some View {

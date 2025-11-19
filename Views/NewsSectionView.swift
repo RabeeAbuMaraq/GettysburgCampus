@@ -1,7 +1,11 @@
 import SwiftUI
 
 struct NewsSection: View {
-    @StateObject private var newsService = NewsService.shared
+    @EnvironmentObject var appState: AppState
+    
+    private var newsService: NewsService {
+        appState.newsService
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {

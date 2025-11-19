@@ -41,9 +41,11 @@ class BackgroundTaskManager: ObservableObject {
             task.setTaskCompleted(success: false)
         }
         
-        // Perform the background work
+        // Perform the background work (fixed async/await)
         Task {
-            eventsService.refreshEvents()
+            await MainActor.run {
+                eventsService.refreshEvents()
+            }
             task.setTaskCompleted(success: true)
         }
     }
