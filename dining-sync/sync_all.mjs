@@ -4,13 +4,18 @@ import { createClient } from "@supabase/supabase-js";
 // CONFIGURATION
 // ============================================================================
 
-// === SUPABASE CONFIG ===
+// Read from environment (GitHub Actions secrets)
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 
-if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-  throw new Error("Missing SUPABASE_URL or SUPABASE_ANON_KEY env vars");
+if (!SUPABASE_URL || !SUPABASE_URL.startsWith("http")) {
+  throw new Error(`SUPABASE_URL is missing or invalid: "${SUPABASE_URL || ""}"`);
 }
+
+if (!SUPABASE_ANON_KEY) {
+  throw new Error("SUPABASE_ANON_KEY is missing. Set it in GitHub Secrets.");
+}
+
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // === FD MEALPLANNER CONFIG ===
