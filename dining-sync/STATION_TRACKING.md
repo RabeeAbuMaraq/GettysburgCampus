@@ -6,19 +6,26 @@ The dining sync now captures **which station or concept** each menu item comes f
 
 ## Stations by Location
 
-### Bullet Hole Stations
+### Bullet Hole Stations (6 stations)
 - **Abe's Faves** - Daily specials and featured items
-- **Higher Bred** - Sandwiches and wraps
+- **Higher Bred** - Sandwiches and wraps  
 - **Pi** - Pizza station
 - **Kazue** - Asian-inspired dishes
 - **Root** - Salads and plant-based options
 - **Soup of the Day** - Daily soups
 
-### Servo Stations
-- **Higher Bred** - Sandwiches and wraps
-- **Root** - Salads and plant-based options
-- **Soup of the Day** - Daily soups
-- Additional stations as configured
+### Servo Stations (9 stations)
+- **Entree** - Main entrees
+- **Saute** - Sautéed dishes
+- **Chefs Table** - Chef's specialty items
+- **Du Jour** - Daily features (soups, salads)
+- **Smart Eats** - Health-focused options
+- **Grill on Lincoln** - Grilled items (burgers, chicken)
+- **Hot Cereal / Rice Corner** - Grains and cereals
+- **The Bake Shop** - Baked goods and desserts
+- **Servo Self Service** - Self-service items
+
+**Note**: Each location has its own unique set of stations. The system automatically captures the correct stations for each location from the FD API.
 
 ## Database Schema
 

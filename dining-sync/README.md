@@ -156,13 +156,16 @@ CREATE INDEX idx_dining_menu_station ON dining_menu_items(station);
 ### Station/Concept Tracking
 
 The system captures which station/concept each item comes from:
-- **Servo**: Higher Bred, Root, Soup of the Day, etc.
-- **Bullet Hole**: Abe's Faves, Pi, Kazue, Higher Bred, Root, Soup of the Day
+
+**Bullet Hole (6 stations)**: Abe's Faves, Higher Bred, Pi, Kazue, Root, Soup of the Day
+
+**Servo (9 stations)**: Entree, Saute, Chefs Table, Du Jour, Smart Eats, Grill on Lincoln, Hot Cereal / Rice Corner, The Bake Shop, Servo Self Service
 
 This allows you to:
 - Filter menu by station in your app
 - Show "Cheesesteak (Abe's Faves)" with station context
 - Group items by station for better UX
+- Each location automatically gets its correct stations from the FD API
 
 ## File Structure
 
