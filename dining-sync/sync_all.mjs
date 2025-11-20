@@ -356,23 +356,42 @@ function convertFDDateToDB(fdDate) {
 }
 
 /**
+ * Normalize item name for deduplication (removes extra whitespace, normalizes case)
+ */
+function normalizeItemName(name) {
+  return name
+    .trim()
+    .replace(/\s+/g, " ") // Replace multiple spaces with single space
+    .toLowerCase();
+}
+
+/**
  * Generate unique key for deduplication
  */
 function generateRowKey(row) {
-  return `${row.served_on}|${row.location}|${row.meal_period}|${row.item_name}`;
+  const normalizedName = normalizeItemName(row.item_name);
+  return `${row.served_on}|${row.location}|${row.meal_period}|${normalizedName}`;
 }
 
 /**
  * Deduplicate rows based on date/location/meal/item_name
+ * Uses normalized item names to catch variations with different spacing/case
  */
 function deduplicateRows(rows) {
   const seen = new Map();
+  let duplicatesFound = 0;
 
   for (const row of rows) {
     const key = generateRowKey(row);
     if (!seen.has(key)) {
       seen.set(key, row);
+    } else {
+      duplicatesFound++;
     }
+  }
+
+  if (duplicatesFound > 0) {
+    console.log(`   🔍 Found ${duplicatesFound} duplicate(s) in data`);
   }
 
   return Array.from(seen.values());
@@ -502,24 +521,37 @@ function processMenuItems(config, dayData) {
       `${filtered.length} filtered → ${withImages.length} with images`
   );
 
-  // STEP 4: Map to our database schema
-  const rows = withImages.map((r) => {
+  // STEP 4: Map to our database schema and deduplicate per day
+  const seenNames = new Set();
+  const rows = [];
+
+  for (const r of withImages) {
     const itemName =
       r.componentEnglishName ||
       r.englishAlternateName ||
       r.componentName ||
       "Unknown";
+    
+    const normalizedName = normalizeItemName(itemName);
+    
+    // Skip if we've already seen this item for this day/meal
+    if (seenNames.has(normalizedName)) {
+      continue;
+    }
+    
+    seenNames.add(normalizedName);
+    
     const imagePath = r.recipeImagePath || r.recipeImage || "";
 
-    return {
+    rows.push({
       served_on,
       location,
       meal_period,
       item_name: itemName.trim(),
       image_url: buildImageUrl(imagePath),
       dietary_tags: extractDietaryTags(r),
-    };
-  });
+    });
+  }
 
   return rows;
 }
