@@ -583,16 +583,30 @@ async function syncMealPeriod(config, startDate, endDate) {
       allRows.push(...rowsForDay);
     }
 
-    // Deduplicate BEFORE inserting (critical!)
+    // Final deduplication pass (should catch any cross-day duplicates)
     const beforeDedup = allRows.length;
     const dedupedRows = deduplicateRows(allRows);
     const afterDedup = dedupedRows.length;
 
     if (beforeDedup !== afterDedup) {
       console.log(
-        `[${config.name}] 🔄 Deduplication: ${beforeDedup} → ${afterDedup} rows ` +
+        `[${config.name}] 🔄 Final deduplication: ${beforeDedup} → ${afterDedup} rows ` +
           `(removed ${beforeDedup - afterDedup} duplicates)`
       );
+    }
+    
+    // Log unique items per date for verification
+    const itemsByDate = {};
+    for (const row of dedupedRows) {
+      if (!itemsByDate[row.served_on]) {
+        itemsByDate[row.served_on] = new Set();
+      }
+      itemsByDate[row.served_on].add(row.item_name);
+    }
+    
+    console.log(`[${config.name}] 📋 Items per date:`);
+    for (const [date, items] of Object.entries(itemsByDate)) {
+      console.log(`   ${date}: ${items.size} unique items`);
     }
 
     if (dedupedRows.length === 0) {
@@ -618,6 +632,36 @@ async function syncMealPeriod(config, startDate, endDate) {
 
     const insertedCount = data?.length ?? 0;
     console.log(`[${config.name}] ✅ Successfully inserted ${insertedCount} rows`);
+
+    // Verify no duplicates in database for this config
+    const { data: verifyData, error: verifyError } = await supabase
+      .from("dining_menu_items")
+      .select("served_on, location, meal_period, item_name")
+      .eq("location", config.locationName)
+      .eq("meal_period", config.mealPeriodLabel)
+      .gte("served_on", formatDBDate(startDate))
+      .lte("served_on", formatDBDate(endDate));
+
+    if (!verifyError && verifyData) {
+      const verifySet = new Set();
+      let dbDuplicates = 0;
+      
+      for (const row of verifyData) {
+        const key = `${row.served_on}|${row.meal_period}|${normalizeItemName(row.item_name)}`;
+        if (verifySet.has(key)) {
+          dbDuplicates++;
+          console.log(`   ⚠️  Database duplicate detected: ${row.item_name} on ${row.served_on}`);
+        } else {
+          verifySet.add(key);
+        }
+      }
+      
+      if (dbDuplicates === 0) {
+        console.log(`[${config.name}] ✅ Verification: No duplicates in database`);
+      } else {
+        console.log(`[${config.name}] ⚠️  Warning: ${dbDuplicates} duplicate(s) found in database`);
+      }
+    }
 
     return { success: true, inserted: insertedCount };
   } catch (err) {
