@@ -29,7 +29,6 @@ const TIME_OFFSET_MINUTES = "300"; // EST offset
 // Override with environment variables if needed
 const START_DATE = process.env.START_DATE; // Format: YYYY-MM-DD
 const DAYS_AHEAD = parseInt(process.env.DAYS_AHEAD || "7", 10); // Default: 7 days for weekly runs
-const CLEAR_EXISTING = process.env.CLEAR_EXISTING !== "false"; // Default to true
 
 // ============================================================================
 // FILTERING RULES
@@ -313,6 +312,9 @@ function extractDietaryTags(recipe) {
   if (recipe.dietaryIcon) {
     parts.push(recipe.dietaryIcon);
   }
+  if (recipe.dietaryName) {
+    parts.push(recipe.dietaryName);
+  }
 
   const unique = [
     ...new Set(
@@ -549,7 +551,7 @@ async function syncMealPeriod(config, startDate, endDate) {
       allRows.push(...rowsForDay);
     }
 
-    // Deduplicate BEFORE inserting
+    // Deduplicate BEFORE inserting (critical!)
     const beforeDedup = allRows.length;
     const dedupedRows = deduplicateRows(allRows);
     const afterDedup = dedupedRows.length;
@@ -566,17 +568,15 @@ async function syncMealPeriod(config, startDate, endDate) {
       return { success: true, inserted: 0 };
     }
 
-    // Insert into Supabase with upsert to handle duplicates
+    // Insert into Supabase (simple insert, no upsert)
+    // The date range was already cleared, so this should be clean
     console.log(
       `[${config.name}] 💾 Inserting ${dedupedRows.length} rows into Supabase...`
     );
 
     const { data, error } = await supabase
       .from("dining_menu_items")
-      .upsert(dedupedRows, {
-        onConflict: "served_on,location,meal_period,item_name",
-        ignoreDuplicates: true,
-      })
+      .insert(dedupedRows)
       .select();
 
     if (error) {
@@ -585,7 +585,7 @@ async function syncMealPeriod(config, startDate, endDate) {
     }
 
     const insertedCount = data?.length ?? 0;
-    console.log(`[${config.name}] ✅ Successfully processed ${insertedCount} rows`);
+    console.log(`[${config.name}] ✅ Successfully inserted ${insertedCount} rows`);
 
     return { success: true, inserted: insertedCount };
   } catch (err) {
@@ -645,18 +645,16 @@ async function main() {
   // Calculate date range
   const { startDate, endDate } = calculateDateRange();
 
-  // Step 1: Clear existing data for this range (if enabled)
-  if (CLEAR_EXISTING) {
-    const clearResult = await clearExistingData(startDate, endDate);
-    if (!clearResult.success) {
-      console.error("❌ Failed to clear existing data. Aborting.");
-      process.exit(1);
-    }
-  } else {
-    console.log("\n⏩ Skipping cleanup (CLEAR_EXISTING=false)");
+  // Step 1: ALWAYS clear existing data for this range to prevent duplicates
+  console.log("\n🧹 Step 1: Clearing existing data for date range...");
+  const clearResult = await clearExistingData(startDate, endDate);
+  if (!clearResult.success) {
+    console.error("❌ Failed to clear existing data. Aborting.");
+    process.exit(1);
   }
 
   // Step 2: Sync all meal periods
+  console.log("\n📥 Step 2: Fetching and syncing meal data...");
   const results = [];
   for (const config of MEAL_CONFIGS) {
     const result = await syncMealPeriod(config, startDate, endDate);
