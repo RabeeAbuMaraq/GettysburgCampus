@@ -455,17 +455,35 @@ function processMenuItems(config, dayData) {
   // Handle both possible field names for recipes array
   const allRecipes = dayData.allMenuRecipes || dayData.menuRecipiesData || [];
 
-  // STEP 1: Filter to Entrees only
-  // Note: category may have leading/trailing spaces
-  const entrees = allRecipes.filter((r) => {
+  // STEP 1: Filter OUT bar items (isFoodBar === "1")
+  // This is the KEY filter - bar items are always available
+  const nonBarItems = allRecipes.filter((r) => r.isFoodBar !== "1");
+
+  // STEP 2: Filter to daily special categories only
+  // Categories that represent daily specials, not regular menu items
+  const DAILY_SPECIAL_CATEGORIES = new Set([
+    " Soup of the Day ",
+    "Soup of the Day",
+    " Entree",
+    "Entree",
+    " Salad of the Day ",
+    "Salad of the Day",
+    " Side", // Daily special sides (when not foodBar)
+    "Side",
+    " Dessert", // Daily special desserts (when not foodBar)
+    "Dessert",
+  ]);
+
+  const dailySpecials = nonBarItems.filter((r) => {
     const category = (r.category || "").trim();
-    return category === "Entree" || category === " Entree";
+    return DAILY_SPECIAL_CATEGORIES.has(category);
   });
 
-  // STEP 2: Apply exclusion list
-  let filtered = entrees;
+  // STEP 3: Apply exclusion list for extra safety
+  // (catches specific items that might slip through)
+  let filtered = dailySpecials;
   if (config.exclusionList) {
-    filtered = entrees.filter((r) => {
+    filtered = dailySpecials.filter((r) => {
       const name = (
         r.componentEnglishName ||
         r.englishAlternateName ||
@@ -474,7 +492,7 @@ function processMenuItems(config, dayData) {
       ).trim();
       if (!name) return false;
 
-      // Exclude always-available items
+      // Exclude known always-available items
       if (config.exclusionList.has(name)) {
         return false;
       }
@@ -483,10 +501,10 @@ function processMenuItems(config, dayData) {
     });
   }
 
-  // STEP 3: Require valid image URL
+  // STEP 4: Require valid image URL
   const withImages = filtered.filter((r) => !!r.recipeImagePath || !!r.recipeImage);
 
-  // STEP 4: Deduplicate within this day's data using normalized names
+  // STEP 5: Deduplicate within this day's data using normalized names
   const seenNormalizedNames = new Set();
   const uniqueItems = [];
 
@@ -508,16 +526,19 @@ function processMenuItems(config, dayData) {
     uniqueItems.push(r);
   }
 
-  // Log filtering stats
+  // Log detailed filtering stats
   const duplicatesInDay = withImages.length - uniqueItems.length;
   console.log(
     `[${config.name}] 📊 ${served_on}: ` +
-      `${allRecipes.length} total → ${entrees.length} entrees → ` +
-      `${filtered.length} after exclusions → ${withImages.length} with images → ` +
+      `${allRecipes.length} total → ` +
+      `${nonBarItems.length} non-bar → ` +
+      `${dailySpecials.length} daily specials → ` +
+      `${filtered.length} after exclusions → ` +
+      `${withImages.length} with images → ` +
       `${uniqueItems.length} unique${duplicatesInDay > 0 ? ` (-${duplicatesInDay} dupes)` : ""}`
   );
 
-  // STEP 5: Map to our database schema
+  // STEP 6: Map to our database schema
   const rows = uniqueItems.map((r) => {
     const itemName =
       r.componentEnglishName ||
