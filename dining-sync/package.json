@@ -1,15 +1,16 @@
 {
   "name": "gburg-dining-sync",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "version": "2.0.0",
+  "description": "Dining menu sync with AI-powered filtering using Google AI Studio",
+  "main": "sync_all.mjs",
+  "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "sync": "node sync_all.mjs",
+    "test": "node test_ai_filter.mjs"
   },
-  "keywords": [],
+  "keywords": ["dining", "sync", "ai", "gemini"],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
   "dependencies": {
     "@supabase/supabase-js": "^2.83.0"
   }

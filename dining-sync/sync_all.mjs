@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { classifyItemsWithAI } from "./ai_filter.mjs";
 
 // ============================================================================
 // CONFIGURATION
@@ -34,207 +35,10 @@ const DAYS_AHEAD = parseInt(process.env.DAYS_AHEAD || "7", 10); // Default: 7 da
 // FILTERING RULES
 // ============================================================================
 
-// === Bullet Hole: Always-available items to EXCLUDE ===
-// These are bar items that are available every day and should not appear
-// as daily specials. This includes pasta bar, salad bar, deli bar, toppings,
-// condiments, and standard sides that never change.
-const BULLET_ALWAYS_AVAILABLE = new Set([
-  // Pasta varieties (always available at pasta bar)
-  "Penne Pasta",
-  "Rigatoni Pasta",
-  "Rotini Pasta",
-  "Ziti Pasta",
-  "Campanelle Pasta",
-  "Shells Pasta",
-  "Spaghetti Pasta",
-  "Seasoned Farfalle Bowtie Pasta",
-  "Cheese Tortellini",
-  "Gluten Free Pasta",
-
-  // Pasta sauces
-  "Alfredo Sauce",
-  "Marinara",
-  "Pizza Sauce",
-  "White Pizza Sauce",
-
-  // Bar proteins (NOT specials - these are always available)
-  "Halal Gyro Cone", // Bar item - NOT the daily special "Gyro"
-  "Athenian Precooked Gyros Slices", // Bar item
-  "Chicken Breast",
-  "Crispy Chicken Breast",
-  "Diced Chicken Breast",
-  "Italian Breaded Chicken Breast",
-  "Italian Diced Chicken",
-  "Buffalo Chicken",
-
-  // Burger/sandwich bases
-  "Beef Patty",
-  "Black Bean Burger",
-  "Vegan Chik'n Nuggets",
-  "Chikn Nuggets",
-
-  // Sides (always available)
-  "French Fries",
-  "Mac and Cheese",
-  "White Rice",
-  "Jasmine Rice",
-  "Refried Beans",
-
-  // Pizza bar
-  "Pizza Dough",
-  "Cauliflower Crust",
-
-  // Deli meats (always available)
-  "Hickory Smoked Turkey Breast",
-  "Ham, Sliced",
-  "Deli Roast Beef",
-  "Pepperoni",
-  "Pepperoni1",
-  "Salami",
-  "Sandwich Pepperoni",
-
-  // Salad bar proteins
-  "Sesame Tamari Tempeh",
-  "Salmon",
-  "Falafel",
-  "Hard Boiled Eggs",
-
-  // Breads and buns
-  "Brioche Bun",
-  "Turano Brioche Bun Vegan",
-  "Philly Sub Roll",
-  "Oven Fired Flatbread",
-  "Everything Bagel",
-  "Plain Bagel - BH",
-  "Udis Plain Bagel",
-  "Gluten Free Bread",
-  "Spinach Tortilla",
-  "Wheat Tortilla",
-
-  // All cheeses (bar items)
-  "Cheddar Cheese",
-  "Sliced Cheddar Cheese",
-  "Great Lakes Sliced Cheddar Cheese 6/24oz",
-  "Pepper Jack Cheese",
-  "Sliced Provolone Cheese",
-  "Sliced Swiss Cheese",
-  "Sliced American Cheese",
-  "American Cheese",
-  "Provolone Cheese",
-  "Swiss Cheese",
-  "Vegan Cheddar Cheese",
-  "Monterey Jack Cheddar Shredded Cheese",
-  "Feta Cheese",
-  "Athenos Feta Cheese",
-  "Fresh Ciliegini Mozzarella",
-  "Shaved Parmesan",
-
-  // All sauces and condiments
-  "BBQ Sauce",
-  "Cannonball BBQ Sauce",
-  "Buffalo Sauce",
-  "Nut-Free Basil Pesto Sauce",
-  "Balsamic Vinaigrette",
-  "Ranch Dressing",
-  "Southwest Ranch",
-  "Creamy Caesar Dressing",
-  "Golden Italian Dressing",
-  "Poppyseed Dressing",
-  "Hot Honey",
-  "Tzatziki",
-  "Hummus",
-  "Creamy Sriracha",
-  "Serrano Chili Sauce",
-
-  // All vegetables/salad components
-  "BABY ARUGULA",
-  "Baby Spinach",
-  "Romaine Lettuce",
-  "Shredded Lettuce",
-  "Cherry Tomatoes",
-  "Sliced Tomato",
-  "Cucumber",
-  "Shredded Carrots",
-  "Red Onions",
-  "Pickled Onion",
-  "Green Bell Pepper",
-  "Banana Pepper",
-  "Pickled Jalapenos",
-  "Sliced Black Olives",
-  "Mixed Olives",
-  "Pickled Sweet Peppers",
-  "Mushrooms",
-  "Basil",
-  "Chickpea",
-  "Edamame",
-  "Quinoa",
-  "Roasted Beets",
-  "Sweet Yellow Corn",
-  "Mandarin Orange Segments",
-  "Crushed Pineapple",
-  "Broccoli Florets",
-  "Diced Sweet Potato",
-
-  // Other bar items
-  "Sliced Dill Pickles",
-  "Bacon Bits",
-  "Balsamic Glaze",
-  "Garlic Infused Olive Oil",
-  "Extra Virgin Olive Oil",
-  "Balsamic Vinegar",
-  "Tri-Color Tortilla Strips",
-  "Herbed Croutons",
-  "Dried Cranberries",
-]);
-
-// === Servo: Always-available grill items to EXCLUDE ===
-// Similar to Bullet Hole, these are items always available at the grill,
-// pasta bar, or as standard sides. We only want to show true daily specials.
-const SERVO_ALWAYS_AVAILABLE = new Set([
-  // Grill burgers/sandwiches (always available)
-  "Grilled Hamburger",
-  "Grilled Cheese",
-  "Vegan Burger",
-  "Beyond Burger",
-
-  // Grilled chicken (always available in all seasonings)
-  "Grilled Fresh Halal Chicken Breast",
-  "Grilled Montreal Seasoned Chicken Breast",
-  "Grilled Old Bay Chicken Breast",
-  "Grilled Cajun Chicken Breast",
-  "Grilled Mojito Lime Chicken Breast",
-  "Grilled Rotisserie Seasoned Chicken Breast",
-  "Grilled Tex-Mex Chicken Breast",
-  "Grilled Honey BBQ Chicken Breast",
-  "Grilled Poultry Seasoned Chicken Breast",
-  "Grilled Just Plain Good Seasoned Chicken Breast",
-  "Grilled Lime Pepper Chicken Breast",
-  "Grilled Mediterranean Chicken Breast",
-  "Grilled Chipotle Cinnamon Chicken Breast",
-  "Grilled Citrus and Herb Chicken Breast",
-
-  // Pasta bar items
-  "Penne Pasta",
-  "Rigatoni Pasta",
-  "Rotini Pasta",
-  "Ziti Pasta",
-  "Campanelle Pasta",
-  "Shells Pasta",
-  "Spaghetti Pasta",
-  "Gemelli Pasta",
-  "Cheese Tortellini",
-  "Gluten Free Pasta",
-
-  // Always-available sides
-  "Jasmine Rice",
-  "French Fries",
-  "Bun",
-  "Seasoned Loops",
-  "Chicken Nuggets",
-
-  // Bar items
-  "Crispy Chicken Breast",
-  "Vegan Meat Strips",
+// Minimal exclusion list for obviously non-food or system items
+// The AI will handle the main filtering logic
+const MINIMAL_EXCLUSIONS = new Set([
+  // Add only obvious junk items here if needed in the future
 ]);
 
 // ============================================================================
@@ -249,7 +53,6 @@ const MEAL_CONFIGS = [
     mealPeriodId: "4",
     mealPeriodLabel: "Lunch",
     locationName: "Servo",
-    exclusionList: SERVO_ALWAYS_AVAILABLE,
   },
   {
     name: "Servo Dinner",
@@ -258,7 +61,6 @@ const MEAL_CONFIGS = [
     mealPeriodId: "5",
     mealPeriodLabel: "Dinner",
     locationName: "Servo",
-    exclusionList: SERVO_ALWAYS_AVAILABLE,
   },
   {
     name: "Bullet Lunch",
@@ -267,7 +69,6 @@ const MEAL_CONFIGS = [
     mealPeriodId: "4",
     mealPeriodLabel: "Lunch",
     locationName: "Bullet Hole",
-    exclusionList: BULLET_ALWAYS_AVAILABLE,
   },
   {
     name: "Bullet Dinner",
@@ -276,7 +77,6 @@ const MEAL_CONFIGS = [
     mealPeriodId: "5",
     mealPeriodLabel: "Dinner",
     locationName: "Bullet Hole",
-    exclusionList: BULLET_ALWAYS_AVAILABLE,
   },
 ];
 
@@ -421,7 +221,7 @@ async function fetchFDRange(config, startDate, endDate) {
 
   const url = `${FD_API_BASE}?${params.toString()}`;
 
-  console.log(`[${config.name}] 🔍 Fetching from FD API...`);
+  console.log(`[FD] ${config.name}: Fetching from API...`);
 
   const res = await fetch(url, {
     headers: {
@@ -432,7 +232,7 @@ async function fetchFDRange(config, startDate, endDate) {
 
   if (!res.ok) {
     throw new Error(
-      `[${config.name}] FD API error: ${res.status} ${res.statusText}`
+      `[FD] ${config.name}: API error ${res.status} ${res.statusText}`
     );
   }
 
@@ -445,45 +245,41 @@ async function fetchFDRange(config, startDate, endDate) {
 // ============================================================================
 
 /**
- * Process and filter menu items according to our rules
+ * Collect candidate menu items from FD data before AI filtering
+ * Returns both rows for insertion and summary for AI classification
+ * 
+ * @param {Object} config - Meal configuration
+ * @param {Array} results - FD API result array (multiple days)
+ * @returns {Object} { rows: Array, summary: Map }
  */
-function processMenuItems(config, dayData) {
-  const served_on = convertFDDateToDB(dayData.strMenuForDate);
-  const location = config.locationName;
-  const meal_period = config.mealPeriodLabel;
+function collectCandidates(config, results) {
+  const rows = [];
+  const itemStats = new Map(); // Track stats per item name for AI summary
 
-  // Handle both possible field names for recipes array
-  const allRecipes = dayData.allMenuRecipes || dayData.menuRecipiesData || [];
+  for (const dayData of results) {
+    const served_on = convertFDDateToDB(dayData.strMenuForDate);
+    const location = config.locationName;
+    const meal_period = config.mealPeriodLabel;
 
-  // STEP 1: Filter OUT bar items (isFoodBar === "1")
-  // This is the KEY filter - bar items are always available
-  const nonBarItems = allRecipes.filter((r) => r.isFoodBar !== "1");
+    // Handle both possible field names for recipes array
+    const allRecipes = dayData.allMenuRecipes || dayData.menuRecipiesData || [];
 
-  // STEP 2: Filter to daily special categories only
-  // Categories that represent daily specials, not regular menu items
-  const DAILY_SPECIAL_CATEGORIES = new Set([
-    " Soup of the Day ",
-    "Soup of the Day",
-    " Entree",
-    "Entree",
-    " Salad of the Day ",
-    "Salad of the Day",
-    " Side", // Daily special sides (when not foodBar)
-    "Side",
-    " Dessert", // Daily special desserts (when not foodBar)
-    "Dessert",
-  ]);
+    // STEP 1: Filter OUT bar items (isFoodBar === "1")
+    // This is the KEY filter - bar items are always available
+    const nonBarItems = allRecipes.filter((r) => r.isFoodBar !== "1");
 
-  const dailySpecials = nonBarItems.filter((r) => {
-    const category = (r.category || "").trim();
-    return DAILY_SPECIAL_CATEGORIES.has(category);
-  });
+    // STEP 2: Filter to Entree category only (most reliable for daily specials)
+    // We focus on entrees as they are the main specials
+    const entrees = nonBarItems.filter((r) => {
+      const category = (r.category || "").trim();
+      return category === "Entree" || category === " Entree";
+    });
 
-  // STEP 3: Apply exclusion list for extra safety
-  // (catches specific items that might slip through)
-  let filtered = dailySpecials;
-  if (config.exclusionList) {
-    filtered = dailySpecials.filter((r) => {
+    // STEP 3: Require valid image URL
+    const withImages = entrees.filter((r) => !!r.recipeImagePath || !!r.recipeImage);
+
+    // STEP 4: Apply minimal exclusions (only obvious junk)
+    const filtered = withImages.filter((r) => {
       const name = (
         r.componentEnglishName ||
         r.englishAlternateName ||
@@ -491,73 +287,73 @@ function processMenuItems(config, dayData) {
         ""
       ).trim();
       if (!name) return false;
-
-      // Exclude known always-available items
-      if (config.exclusionList.has(name)) {
-        return false;
-      }
-
+      if (MINIMAL_EXCLUSIONS.has(name)) return false;
       return true;
     });
-  }
 
-  // STEP 4: Require valid image URL
-  const withImages = filtered.filter((r) => !!r.recipeImagePath || !!r.recipeImage);
+    console.log(
+      `[SYNC] ${config.name} ${served_on}: ` +
+        `${allRecipes.length} total → ` +
+        `${nonBarItems.length} non-bar → ` +
+        `${entrees.length} entrees → ` +
+        `${withImages.length} with images → ` +
+        `${filtered.length} candidates`
+    );
 
-  // STEP 5: Deduplicate within this day's data using normalized names
-  const seenNormalizedNames = new Set();
-  const uniqueItems = [];
+    // STEP 5: Build rows and track item stats
+    for (const r of filtered) {
+      const itemName =
+        r.englishAlternateName ||
+        r.componentEnglishName ||
+        r.componentName ||
+        "Unknown";
+      const imagePath = r.recipeImagePath || r.recipeImage || "";
+      const hasImage = !!imagePath;
 
-  for (const r of withImages) {
-    const itemName =
-      r.componentEnglishName ||
-      r.englishAlternateName ||
-      r.componentName ||
-      "Unknown";
-    
-    const normalizedName = normalizeItemName(itemName);
-    
-    // Skip if we've already seen this item (normalized) for this day/meal
-    if (seenNormalizedNames.has(normalizedName)) {
-      continue;
+      // Create row for database
+      const row = {
+        served_on,
+        location,
+        meal_period,
+        item_name: itemName.trim(),
+        image_url: buildImageUrl(imagePath),
+        dietary_tags: extractDietaryTags(r),
+      };
+      rows.push(row);
+
+      // Track stats for AI summary
+      if (!itemStats.has(itemName)) {
+        itemStats.set(itemName, {
+          name: itemName,
+          dates: new Set(),
+          locations: new Set(),
+          meal_periods: new Set(),
+          has_image: hasImage,
+        });
+      }
+      const stats = itemStats.get(itemName);
+      stats.dates.add(served_on);
+      stats.locations.add(location);
+      stats.meal_periods.add(meal_period);
     }
-    
-    seenNormalizedNames.add(normalizedName);
-    uniqueItems.push(r);
   }
 
-  // Log detailed filtering stats
-  const duplicatesInDay = withImages.length - uniqueItems.length;
+  // Convert item stats to AI summary format
+  const summaryItems = Array.from(itemStats.values()).map((stats) => ({
+    name: stats.name,
+    days_count: stats.dates.size,
+    dates: Array.from(stats.dates).sort(),
+    locations: Array.from(stats.locations),
+    meal_periods: Array.from(stats.meal_periods),
+    has_image: stats.has_image,
+  }));
+
   console.log(
-    `[${config.name}] 📊 ${served_on}: ` +
-      `${allRecipes.length} total → ` +
-      `${nonBarItems.length} non-bar → ` +
-      `${dailySpecials.length} daily specials → ` +
-      `${filtered.length} after exclusions → ` +
-      `${withImages.length} with images → ` +
-      `${uniqueItems.length} unique${duplicatesInDay > 0 ? ` (-${duplicatesInDay} dupes)` : ""}`
+    `[SYNC] ${config.name}: Collected ${rows.length} candidate rows, ` +
+      `${summaryItems.length} unique items`
   );
 
-  // STEP 6: Map to our database schema
-  const rows = uniqueItems.map((r) => {
-    const itemName =
-      r.componentEnglishName ||
-      r.englishAlternateName ||
-      r.componentName ||
-      "Unknown";
-    const imagePath = r.recipeImagePath || r.recipeImage || "";
-
-    return {
-      served_on,
-      location,
-      meal_period,
-      item_name: itemName.trim(),
-      image_url: buildImageUrl(imagePath),
-      dietary_tags: extractDietaryTags(r),
-    };
-  });
-
-  return rows;
+  return { rows, summaryItems };
 }
 
 /**
@@ -569,45 +365,68 @@ async function syncMealPeriod(config, startDate, endDate) {
   console.log(`${"=".repeat(70)}`);
 
   try {
-    // Fetch data from FD API
+    // STEP 1: Fetch data from FD API
     const json = await fetchFDRange(config, startDate, endDate);
 
     const results = json.result || [];
-    console.log(`[${config.name}] ✅ FD returned ${results.length} day entries`);
+    console.log(`[FD] ${config.name}: Received ${results.length} day entries`);
 
     if (results.length === 0) {
-      console.log(`[${config.name}] ⚠️  No data returned from FD API`);
+      console.log(`[SYNC] ${config.name}: No data returned from FD API`);
       return { success: true, inserted: 0 };
     }
 
-    // Process each day
-    const allRows = [];
-    for (const day of results) {
-      const rowsForDay = processMenuItems(config, day);
-      allRows.push(...rowsForDay);
+    // STEP 2: Collect candidate items (before AI filtering)
+    const { rows: candidateRows, summaryItems } = collectCandidates(config, results);
+
+    if (candidateRows.length === 0) {
+      console.log(`[SYNC] ${config.name}: No candidate items found`);
+      return { success: true, inserted: 0 };
     }
 
-    // Final cross-day deduplication (should be minimal if per-day dedup works)
+    // STEP 3: Call AI to classify items
+    console.log(
+      `[SYNC] ${config.name}: Calling AI to classify ${summaryItems.length} unique items...`
+    );
+    const aiDecisions = await classifyItemsWithAI({
+      location: config.locationName,
+      mealPeriod: config.mealPeriodLabel,
+      items: summaryItems,
+    });
+
+    // STEP 4: Filter rows based on AI decisions
+    const filteredRows = candidateRows.filter((row) => {
+      const decision = aiDecisions.get(row.item_name);
+      return decision?.keep === true;
+    });
+
+    const removedCount = candidateRows.length - filteredRows.length;
+    console.log(
+      `[SYNC] ${config.name}: AI filtered ${candidateRows.length} → ${filteredRows.length} rows ` +
+        `(removed ${removedCount})`
+    );
+
+    if (filteredRows.length === 0) {
+      console.log(`[SYNC] ${config.name}: No rows remain after AI filtering`);
+      return { success: true, inserted: 0 };
+    }
+
+    // STEP 5: Deduplicate by (served_on, location, meal_period, item_name)
     const dedupMap = new Map();
-    for (const row of allRows) {
-      const key = `${row.served_on}|${normalizeItemName(row.item_name)}`;
+    for (const row of filteredRows) {
+      const key = `${row.served_on}|${row.location}|${row.meal_period}|${normalizeItemName(row.item_name)}`;
       if (!dedupMap.has(key)) {
         dedupMap.set(key, row);
       }
     }
     const dedupedRows = Array.from(dedupMap.values());
-    
-    const crossDayDupes = allRows.length - dedupedRows.length;
-    if (crossDayDupes > 0) {
-      console.log(`[${config.name}] 🔄 Removed ${crossDayDupes} cross-day duplicate(s)`);
+
+    const dupeCount = filteredRows.length - dedupedRows.length;
+    if (dupeCount > 0) {
+      console.log(`[SYNC] ${config.name}: Removed ${dupeCount} duplicate(s)`);
     }
 
-    if (dedupedRows.length === 0) {
-      console.log(`[${config.name}] ℹ️  No rows to insert after filtering`);
-      return { success: true, inserted: 0 };
-    }
-
-    // Show summary by date
+    // STEP 6: Show summary by date
     const itemsByDate = {};
     for (const row of dedupedRows) {
       if (!itemsByDate[row.served_on]) {
@@ -615,16 +434,15 @@ async function syncMealPeriod(config, startDate, endDate) {
       }
       itemsByDate[row.served_on].push(row.item_name);
     }
-    
-    console.log(`[${config.name}] 📋 Summary:`);
-    for (const [date, items] of Object.entries(itemsByDate)) {
+
+    console.log(`[SYNC] ${config.name}: Final menu summary:`);
+    for (const [date, items] of Object.entries(itemsByDate).sort()) {
       console.log(`   ${date}: ${items.length} items - ${items.join(", ")}`);
     }
 
-    // Insert into Supabase (simple insert, no upsert)
-    // The date range was already cleared, so this should be clean
+    // STEP 7: Insert into Supabase
     console.log(
-      `[${config.name}] 💾 Inserting ${dedupedRows.length} total rows into Supabase...`
+      `[SYNC] ${config.name}: Inserting ${dedupedRows.length} rows into Supabase...`
     );
 
     const { data, error } = await supabase
@@ -633,17 +451,17 @@ async function syncMealPeriod(config, startDate, endDate) {
       .select();
 
     if (error) {
-      console.error(`[${config.name}] ❌ Supabase error:`, error.message);
+      console.error(`[SYNC] ${config.name}: Supabase error:`, error.message);
       console.error(`   Details:`, error);
       return { success: false, error: error.message };
     }
 
     const insertedCount = data?.length ?? 0;
-    console.log(`[${config.name}] ✅ Successfully inserted ${insertedCount} rows`);
+    console.log(`[SYNC] ${config.name}: ✅ Successfully inserted ${insertedCount} rows`);
 
     return { success: true, inserted: insertedCount };
   } catch (err) {
-    console.error(`[${config.name}] ❌ Unexpected error:`, err.message);
+    console.error(`[SYNC] ${config.name}: ❌ Unexpected error:`, err.message);
     console.error(`   Stack:`, err.stack);
     return { success: false, error: err.message };
   }
@@ -660,7 +478,7 @@ async function clearAllData() {
   console.log(`\n${"=".repeat(70)}`);
   console.log(`🗑️  CLEARING ALL EXISTING DATA`);
   console.log(`${"=".repeat(70)}`);
-  console.log(`⚠️  This will delete ALL menu items from the database`);
+  console.log(`[SYNC] ⚠️  This will delete ALL menu items from the database`);
 
   try {
     // Delete all rows
@@ -671,16 +489,16 @@ async function clearAllData() {
       .select();
 
     if (error) {
-      console.error("❌ Error clearing data:", error.message);
+      console.error("[SYNC] ❌ Error clearing data:", error.message);
       return { success: false, error: error.message };
     }
 
     const deletedCount = data?.length ?? 0;
-    console.log(`✅ Deleted ${deletedCount} existing rows (fresh start)`);
+    console.log(`[SYNC] ✅ Deleted ${deletedCount} existing rows (fresh start)`);
 
     return { success: true, deleted: deletedCount };
   } catch (err) {
-    console.error("❌ Unexpected error during cleanup:", err.message);
+    console.error("[SYNC] ❌ Unexpected error during cleanup:", err.message);
     return { success: false, error: err.message };
   }
 }
