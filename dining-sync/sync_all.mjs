@@ -329,6 +329,20 @@ function extractDietaryTags(recipe) {
 }
 
 /**
+ * Normalize item name for deduplication
+ * - Removes extra whitespace
+ * - Converts to lowercase
+ * - Removes special characters variations
+ */
+function normalizeItemName(name) {
+  return name
+    .trim()
+    .replace(/\s+/g, " ") // Multiple spaces → single space
+    .replace(/[–—]/g, "-") // En/em dashes → hyphen
+    .toLowerCase();
+}
+
+/**
  * Format JavaScript Date to FD API format (YYYY/MM/DD)
  */
 function formatFDDate(d) {
@@ -353,48 +367,6 @@ function formatDBDate(d) {
  */
 function convertFDDateToDB(fdDate) {
   return fdDate.replace(/\//g, "-");
-}
-
-/**
- * Normalize item name for deduplication (removes extra whitespace, normalizes case)
- */
-function normalizeItemName(name) {
-  return name
-    .trim()
-    .replace(/\s+/g, " ") // Replace multiple spaces with single space
-    .toLowerCase();
-}
-
-/**
- * Generate unique key for deduplication
- */
-function generateRowKey(row) {
-  const normalizedName = normalizeItemName(row.item_name);
-  return `${row.served_on}|${row.location}|${row.meal_period}|${normalizedName}`;
-}
-
-/**
- * Deduplicate rows based on date/location/meal/item_name
- * Uses normalized item names to catch variations with different spacing/case
- */
-function deduplicateRows(rows) {
-  const seen = new Map();
-  let duplicatesFound = 0;
-
-  for (const row of rows) {
-    const key = generateRowKey(row);
-    if (!seen.has(key)) {
-      seen.set(key, row);
-    } else {
-      duplicatesFound++;
-    }
-  }
-
-  if (duplicatesFound > 0) {
-    console.log(`   🔍 Found ${duplicatesFound} duplicate(s) in data`);
-  }
-
-  return Array.from(seen.values());
 }
 
 // ============================================================================
@@ -514,16 +486,9 @@ function processMenuItems(config, dayData) {
   // STEP 3: Require valid image URL
   const withImages = filtered.filter((r) => !!r.recipeImagePath || !!r.recipeImage);
 
-  // Log filtering stats
-  console.log(
-    `[${config.name}] 📊 ${served_on}: ` +
-      `${allRecipes.length} total → ${entrees.length} entrees → ` +
-      `${filtered.length} filtered → ${withImages.length} with images`
-  );
-
-  // STEP 4: Map to our database schema and deduplicate per day
-  const seenNames = new Set();
-  const rows = [];
+  // STEP 4: Deduplicate within this day's data using normalized names
+  const seenNormalizedNames = new Set();
+  const uniqueItems = [];
 
   for (const r of withImages) {
     const itemName =
@@ -534,24 +499,42 @@ function processMenuItems(config, dayData) {
     
     const normalizedName = normalizeItemName(itemName);
     
-    // Skip if we've already seen this item for this day/meal
-    if (seenNames.has(normalizedName)) {
+    // Skip if we've already seen this item (normalized) for this day/meal
+    if (seenNormalizedNames.has(normalizedName)) {
       continue;
     }
     
-    seenNames.add(normalizedName);
-    
+    seenNormalizedNames.add(normalizedName);
+    uniqueItems.push(r);
+  }
+
+  // Log filtering stats
+  const duplicatesInDay = withImages.length - uniqueItems.length;
+  console.log(
+    `[${config.name}] 📊 ${served_on}: ` +
+      `${allRecipes.length} total → ${entrees.length} entrees → ` +
+      `${filtered.length} after exclusions → ${withImages.length} with images → ` +
+      `${uniqueItems.length} unique${duplicatesInDay > 0 ? ` (-${duplicatesInDay} dupes)` : ""}`
+  );
+
+  // STEP 5: Map to our database schema
+  const rows = uniqueItems.map((r) => {
+    const itemName =
+      r.componentEnglishName ||
+      r.englishAlternateName ||
+      r.componentName ||
+      "Unknown";
     const imagePath = r.recipeImagePath || r.recipeImage || "";
 
-    rows.push({
+    return {
       served_on,
       location,
       meal_period,
       item_name: itemName.trim(),
       image_url: buildImageUrl(imagePath),
       dietary_tags: extractDietaryTags(r),
-    });
-  }
+    };
+  });
 
   return rows;
 }
@@ -583,30 +566,19 @@ async function syncMealPeriod(config, startDate, endDate) {
       allRows.push(...rowsForDay);
     }
 
-    // Final deduplication pass (should catch any cross-day duplicates)
-    const beforeDedup = allRows.length;
-    const dedupedRows = deduplicateRows(allRows);
-    const afterDedup = dedupedRows.length;
-
-    if (beforeDedup !== afterDedup) {
-      console.log(
-        `[${config.name}] 🔄 Final deduplication: ${beforeDedup} → ${afterDedup} rows ` +
-          `(removed ${beforeDedup - afterDedup} duplicates)`
-      );
-    }
-    
-    // Log unique items per date for verification
-    const itemsByDate = {};
-    for (const row of dedupedRows) {
-      if (!itemsByDate[row.served_on]) {
-        itemsByDate[row.served_on] = new Set();
+    // Final cross-day deduplication (should be minimal if per-day dedup works)
+    const dedupMap = new Map();
+    for (const row of allRows) {
+      const key = `${row.served_on}|${normalizeItemName(row.item_name)}`;
+      if (!dedupMap.has(key)) {
+        dedupMap.set(key, row);
       }
-      itemsByDate[row.served_on].add(row.item_name);
     }
+    const dedupedRows = Array.from(dedupMap.values());
     
-    console.log(`[${config.name}] 📋 Items per date:`);
-    for (const [date, items] of Object.entries(itemsByDate)) {
-      console.log(`   ${date}: ${items.size} unique items`);
+    const crossDayDupes = allRows.length - dedupedRows.length;
+    if (crossDayDupes > 0) {
+      console.log(`[${config.name}] 🔄 Removed ${crossDayDupes} cross-day duplicate(s)`);
     }
 
     if (dedupedRows.length === 0) {
@@ -614,10 +586,24 @@ async function syncMealPeriod(config, startDate, endDate) {
       return { success: true, inserted: 0 };
     }
 
+    // Show summary by date
+    const itemsByDate = {};
+    for (const row of dedupedRows) {
+      if (!itemsByDate[row.served_on]) {
+        itemsByDate[row.served_on] = [];
+      }
+      itemsByDate[row.served_on].push(row.item_name);
+    }
+    
+    console.log(`[${config.name}] 📋 Summary:`);
+    for (const [date, items] of Object.entries(itemsByDate)) {
+      console.log(`   ${date}: ${items.length} items - ${items.join(", ")}`);
+    }
+
     // Insert into Supabase (simple insert, no upsert)
     // The date range was already cleared, so this should be clean
     console.log(
-      `[${config.name}] 💾 Inserting ${dedupedRows.length} rows into Supabase...`
+      `[${config.name}] 💾 Inserting ${dedupedRows.length} total rows into Supabase...`
     );
 
     const { data, error } = await supabase
@@ -627,45 +613,17 @@ async function syncMealPeriod(config, startDate, endDate) {
 
     if (error) {
       console.error(`[${config.name}] ❌ Supabase error:`, error.message);
+      console.error(`   Details:`, error);
       return { success: false, error: error.message };
     }
 
     const insertedCount = data?.length ?? 0;
     console.log(`[${config.name}] ✅ Successfully inserted ${insertedCount} rows`);
 
-    // Verify no duplicates in database for this config
-    const { data: verifyData, error: verifyError } = await supabase
-      .from("dining_menu_items")
-      .select("served_on, location, meal_period, item_name")
-      .eq("location", config.locationName)
-      .eq("meal_period", config.mealPeriodLabel)
-      .gte("served_on", formatDBDate(startDate))
-      .lte("served_on", formatDBDate(endDate));
-
-    if (!verifyError && verifyData) {
-      const verifySet = new Set();
-      let dbDuplicates = 0;
-      
-      for (const row of verifyData) {
-        const key = `${row.served_on}|${row.meal_period}|${normalizeItemName(row.item_name)}`;
-        if (verifySet.has(key)) {
-          dbDuplicates++;
-          console.log(`   ⚠️  Database duplicate detected: ${row.item_name} on ${row.served_on}`);
-        } else {
-          verifySet.add(key);
-        }
-      }
-      
-      if (dbDuplicates === 0) {
-        console.log(`[${config.name}] ✅ Verification: No duplicates in database`);
-      } else {
-        console.log(`[${config.name}] ⚠️  Warning: ${dbDuplicates} duplicate(s) found in database`);
-      }
-    }
-
     return { success: true, inserted: insertedCount };
   } catch (err) {
     console.error(`[${config.name}] ❌ Unexpected error:`, err.message);
+    console.error(`   Stack:`, err.stack);
     return { success: false, error: err.message };
   }
 }
@@ -675,32 +633,29 @@ async function syncMealPeriod(config, startDate, endDate) {
 // ============================================================================
 
 /**
- * Delete existing data for the date range to avoid duplicates on re-sync
+ * Delete ALL existing data in the table (complete fresh start)
  */
-async function clearExistingData(startDate, endDate) {
-  const startStr = formatDBDate(startDate);
-  const endStr = formatDBDate(endDate);
-
+async function clearAllData() {
   console.log(`\n${"=".repeat(70)}`);
-  console.log(`🗑️  CLEANING UP EXISTING DATA`);
+  console.log(`🗑️  CLEARING ALL EXISTING DATA`);
   console.log(`${"=".repeat(70)}`);
-  console.log(`📅 Date range: ${startStr} to ${endStr}`);
+  console.log(`⚠️  This will delete ALL menu items from the database`);
 
   try {
+    // Delete all rows
     const { data, error } = await supabase
       .from("dining_menu_items")
       .delete()
-      .gte("served_on", startStr)
-      .lte("served_on", endStr)
+      .neq("id", 0) // Delete everything (id != 0 means all rows)
       .select();
 
     if (error) {
-      console.error("❌ Error clearing existing data:", error.message);
+      console.error("❌ Error clearing data:", error.message);
       return { success: false, error: error.message };
     }
 
     const deletedCount = data?.length ?? 0;
-    console.log(`✅ Deleted ${deletedCount} existing rows`);
+    console.log(`✅ Deleted ${deletedCount} existing rows (fresh start)`);
 
     return { success: true, deleted: deletedCount };
   } catch (err) {
@@ -721,9 +676,9 @@ async function main() {
   // Calculate date range
   const { startDate, endDate } = calculateDateRange();
 
-  // Step 1: ALWAYS clear existing data for this range to prevent duplicates
-  console.log("\n🧹 Step 1: Clearing existing data for date range...");
-  const clearResult = await clearExistingData(startDate, endDate);
+  // Step 1: Clear ALL existing data for a fresh start
+  console.log("\n🧹 Step 1: Clearing all existing menu data...");
+  const clearResult = await clearAllData();
   if (!clearResult.success) {
     console.error("❌ Failed to clear existing data. Aborting.");
     process.exit(1);
@@ -739,7 +694,7 @@ async function main() {
 
   // Step 3: Print summary
   console.log("\n" + "=".repeat(70));
-  console.log("📊 SYNC SUMMARY");
+  console.log("📊 FINAL SYNC SUMMARY");
   console.log("=".repeat(70));
 
   let totalInserted = 0;
@@ -758,7 +713,7 @@ async function main() {
   }
 
   console.log("\n" + "=".repeat(70));
-  console.log(`🎉 TOTAL: ${totalInserted} rows inserted`);
+  console.log(`🎉 TOTAL: ${totalInserted} rows inserted into clean database`);
   if (failures > 0) {
     console.log(`⚠️  ${failures} meal period(s) had errors`);
   }
