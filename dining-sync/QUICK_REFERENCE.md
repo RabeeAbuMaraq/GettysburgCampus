@@ -135,16 +135,24 @@ npm run sync
 -- Count total items
 SELECT COUNT(*) FROM dining_menu_items;
 
--- Items by date
-SELECT served_on, location, meal_period, COUNT(*) 
+-- Items by date and station
+SELECT served_on, location, meal_period, station, COUNT(*) 
 FROM dining_menu_items
-GROUP BY served_on, location, meal_period
-ORDER BY served_on DESC;
+GROUP BY served_on, location, meal_period, station
+ORDER BY served_on DESC, location, meal_period, station;
 
--- Today's menu
-SELECT * FROM dining_menu_items
+-- Today's menu with stations
+SELECT item_name, station, meal_period, location
+FROM dining_menu_items
 WHERE served_on = CURRENT_DATE
-ORDER BY location, meal_period, item_name;
+ORDER BY location, meal_period, station, item_name;
+
+-- Count items by station
+SELECT station, COUNT(*) as item_count
+FROM dining_menu_items
+WHERE served_on >= CURRENT_DATE
+GROUP BY station
+ORDER BY item_count DESC;
 ```
 
 ### Verify AI Quality

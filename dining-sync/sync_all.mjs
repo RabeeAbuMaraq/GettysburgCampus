@@ -245,14 +245,36 @@ async function fetchFDRange(config, startDate, endDate) {
 // ============================================================================
 
 /**
+ * Build concept/station lookup map from conceptData array
+ * 
+ * @param {Array} conceptData - Array of concept objects from FD API
+ * @returns {Map<number, string>} Map from conceptId to conceptName
+ */
+function buildConceptMap(conceptData) {
+  const map = new Map();
+  if (!conceptData || !Array.isArray(conceptData)) {
+    return map;
+  }
+  
+  for (const concept of conceptData) {
+    if (concept.conceptId && concept.conceptName) {
+      map.set(concept.conceptId, concept.conceptName);
+    }
+  }
+  
+  return map;
+}
+
+/**
  * Collect candidate menu items from FD data before AI filtering
  * Returns both rows for insertion and summary for AI classification
  * 
  * @param {Object} config - Meal configuration
  * @param {Array} results - FD API result array (multiple days)
+ * @param {Map<number, string>} conceptMap - Map from conceptId to conceptName
  * @returns {Object} { rows: Array, summary: Map }
  */
-function collectCandidates(config, results) {
+function collectCandidates(config, results, conceptMap) {
   const rows = [];
   const itemStats = new Map(); // Track stats per item name for AI summary
 
@@ -310,6 +332,10 @@ function collectCandidates(config, results) {
       const imagePath = r.recipeImagePath || r.recipeImage || "";
       const hasImage = !!imagePath;
 
+      // Get station name from conceptId
+      const conceptId = r.conceptId;
+      const stationName = conceptMap.get(conceptId) || "Unknown Station";
+
       // Create row for database
       const row = {
         served_on,
@@ -318,6 +344,7 @@ function collectCandidates(config, results) {
         item_name: itemName.trim(),
         image_url: buildImageUrl(imagePath),
         dietary_tags: extractDietaryTags(r),
+        station: stationName,
       };
       rows.push(row);
 
@@ -376,15 +403,23 @@ async function syncMealPeriod(config, startDate, endDate) {
       return { success: true, inserted: 0 };
     }
 
-    // STEP 2: Collect candidate items (before AI filtering)
-    const { rows: candidateRows, summaryItems } = collectCandidates(config, results);
+    // STEP 2: Build concept/station map from the first result's conceptData
+    const conceptData = results[0]?.conceptData || [];
+    const conceptMap = buildConceptMap(conceptData);
+    console.log(
+      `[SYNC] ${config.name}: Found ${conceptMap.size} stations: ` +
+        `${Array.from(conceptMap.values()).join(", ")}`
+    );
+
+    // STEP 3: Collect candidate items (before AI filtering)
+    const { rows: candidateRows, summaryItems } = collectCandidates(config, results, conceptMap);
 
     if (candidateRows.length === 0) {
       console.log(`[SYNC] ${config.name}: No candidate items found`);
       return { success: true, inserted: 0 };
     }
 
-    // STEP 3: Call AI to classify items
+    // STEP 4: Call AI to classify items
     console.log(
       `[SYNC] ${config.name}: Calling AI to classify ${summaryItems.length} unique items...`
     );
@@ -394,7 +429,7 @@ async function syncMealPeriod(config, startDate, endDate) {
       items: summaryItems,
     });
 
-    // STEP 4: Filter rows based on AI decisions
+    // STEP 5: Filter rows based on AI decisions
     const filteredRows = candidateRows.filter((row) => {
       const decision = aiDecisions.get(row.item_name);
       return decision?.keep === true;
@@ -411,10 +446,10 @@ async function syncMealPeriod(config, startDate, endDate) {
       return { success: true, inserted: 0 };
     }
 
-    // STEP 5: Deduplicate by (served_on, location, meal_period, item_name)
+    // STEP 6: Deduplicate by (served_on, location, meal_period, item_name, station)
     const dedupMap = new Map();
     for (const row of filteredRows) {
-      const key = `${row.served_on}|${row.location}|${row.meal_period}|${normalizeItemName(row.item_name)}`;
+      const key = `${row.served_on}|${row.location}|${row.meal_period}|${normalizeItemName(row.item_name)}|${row.station}`;
       if (!dedupMap.has(key)) {
         dedupMap.set(key, row);
       }
@@ -426,13 +461,13 @@ async function syncMealPeriod(config, startDate, endDate) {
       console.log(`[SYNC] ${config.name}: Removed ${dupeCount} duplicate(s)`);
     }
 
-    // STEP 6: Show summary by date
+    // STEP 7: Show summary by date and station
     const itemsByDate = {};
     for (const row of dedupedRows) {
       if (!itemsByDate[row.served_on]) {
         itemsByDate[row.served_on] = [];
       }
-      itemsByDate[row.served_on].push(row.item_name);
+      itemsByDate[row.served_on].push(`${row.item_name} (${row.station})`);
     }
 
     console.log(`[SYNC] ${config.name}: Final menu summary:`);
@@ -440,7 +475,7 @@ async function syncMealPeriod(config, startDate, endDate) {
       console.log(`   ${date}: ${items.length} items - ${items.join(", ")}`);
     }
 
-    // STEP 7: Insert into Supabase
+    // STEP 8: Insert into Supabase
     console.log(
       `[SYNC] ${config.name}: Inserting ${dedupedRows.length} rows into Supabase...`
     );

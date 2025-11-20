@@ -140,14 +140,29 @@ CREATE TABLE dining_menu_items (
   item_name TEXT NOT NULL,
   image_url TEXT,
   dietary_tags TEXT,
+  station TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Recommended unique constraint
 ALTER TABLE dining_menu_items
 ADD CONSTRAINT dining_menu_items_unique
-UNIQUE (served_on, location, meal_period, item_name);
+UNIQUE (served_on, location, meal_period, item_name, station);
+
+-- Index for faster station queries
+CREATE INDEX idx_dining_menu_station ON dining_menu_items(station);
 ```
+
+### Station/Concept Tracking
+
+The system captures which station/concept each item comes from:
+- **Servo**: Higher Bred, Root, Soup of the Day, etc.
+- **Bullet Hole**: Abe's Faves, Pi, Kazue, Higher Bred, Root, Soup of the Day
+
+This allows you to:
+- Filter menu by station in your app
+- Show "Cheesesteak (Abe's Faves)" with station context
+- Group items by station for better UX
 
 ## File Structure
 

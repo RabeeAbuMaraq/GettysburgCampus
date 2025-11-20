@@ -22,17 +22,41 @@ CREATE TABLE IF NOT EXISTS dining_menu_items (
   item_name TEXT NOT NULL,
   image_url TEXT,
   dietary_tags TEXT,
+  station TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Add unique constraint to prevent duplicates
 ALTER TABLE dining_menu_items
 ADD CONSTRAINT dining_menu_items_unique
-UNIQUE (served_on, location, meal_period, item_name);
+UNIQUE (served_on, location, meal_period, item_name, station);
 
--- Optional: Add index for faster queries
+-- Add indexes for faster queries
 CREATE INDEX IF NOT EXISTS idx_dining_menu_date 
 ON dining_menu_items(served_on DESC);
+
+CREATE INDEX IF NOT EXISTS idx_dining_menu_station 
+ON dining_menu_items(station);
+```
+
+**If you already have the table**, just run this to add the station column:
+
+```sql
+-- Add station column to existing table
+ALTER TABLE public.dining_menu_items 
+ADD COLUMN IF NOT EXISTS station text;
+
+-- Update the unique constraint
+ALTER TABLE public.dining_menu_items 
+DROP CONSTRAINT IF EXISTS dining_menu_items_unique;
+
+ALTER TABLE public.dining_menu_items
+ADD CONSTRAINT dining_menu_items_unique
+UNIQUE (served_on, location, meal_period, item_name, station);
+
+-- Add index for faster station queries
+CREATE INDEX IF NOT EXISTS idx_dining_menu_station 
+ON public.dining_menu_items(station);
 ```
 
 ## Step 2: Get Google AI Studio API Key
