@@ -246,9 +246,10 @@ async function fetchFDRange(config, startDate, endDate) {
 
 /**
  * Build concept/station lookup map from conceptData array
+ * Maps rowId to conceptName (recipes have rowId, not conceptId)
  * 
  * @param {Array} conceptData - Array of concept objects from FD API
- * @returns {Map<number, string>} Map from conceptId to conceptName
+ * @returns {Map<number, string>} Map from rowId to conceptName
  */
 function buildConceptMap(conceptData) {
   const map = new Map();
@@ -256,9 +257,15 @@ function buildConceptMap(conceptData) {
     return map;
   }
   
+  // Build a map of rowId -> conceptName
+  // Note: Multiple concepts can have the same rowId (weekly variations)
+  // We'll just take the first one we encounter
   for (const concept of conceptData) {
-    if (concept.conceptId && concept.conceptName) {
-      map.set(concept.conceptId, concept.conceptName);
+    if (concept.rowId && concept.conceptName) {
+      // Only set if not already set (keep first occurrence)
+      if (!map.has(concept.rowId)) {
+        map.set(concept.rowId, concept.conceptName);
+      }
     }
   }
   
@@ -332,9 +339,9 @@ function collectCandidates(config, results, conceptMap) {
       const imagePath = r.recipeImagePath || r.recipeImage || "";
       const hasImage = !!imagePath;
 
-      // Get station name from conceptId
-      const conceptId = r.conceptId;
-      const stationName = conceptMap.get(conceptId) || "Unknown Station";
+      // Get station name from rowId (recipes use rowId to link to concepts)
+      const rowId = r.rowId;
+      const stationName = conceptMap.get(rowId) || "Unknown Station";
 
       // Create row for database
       const row = {

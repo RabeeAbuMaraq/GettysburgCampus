@@ -69,24 +69,24 @@ The FD API returns a `conceptData` array with station information:
 }
 ```
 
-Each recipe/item has a `conceptId` field that links to the station.
+Each recipe/item has a `rowId` field that links to the concept's `rowId` to identify the station.
 
 ### 2. Processing Flow
 
-1. **Build Concept Map**: Extract conceptId → conceptName mapping from `conceptData`
-2. **Link Items**: Match each recipe's `conceptId` to get station name
+1. **Build Concept Map**: Extract rowId → conceptName mapping from `conceptData`
+2. **Link Items**: Match each recipe's `rowId` to concept's `rowId` to get station name
 3. **Store Station**: Include station name in database row
 
 ### 3. Code Changes
 
 **New Function**: `buildConceptMap(conceptData)`
-- Creates a Map from conceptId to conceptName
+- Creates a Map from rowId to conceptName
 - Called once per API response
 
 **Updated Function**: `collectCandidates(config, results, conceptMap)`
 - Now accepts `conceptMap` parameter
-- Extracts `conceptId` from each recipe
-- Looks up station name from map
+- Extracts `rowId` from each recipe
+- Looks up station name from map using rowId
 - Adds `station` field to each row
 
 **Updated Function**: `syncMealPeriod(config, startDate, endDate)`
@@ -204,8 +204,9 @@ The sync now logs station information:
 
 ## Backward Compatibility
 
-- If `conceptId` is missing from a recipe, station defaults to `"Unknown Station"`
+- If `rowId` is missing from a recipe, station defaults to `"Unknown Station"`
 - If `conceptData` array is empty, the sync still works (all items marked as "Unknown Station")
+- If rowId doesn't match any concept, defaults to "Unknown Station"
 - Existing code without station support can ignore the field
 
 ## Testing
